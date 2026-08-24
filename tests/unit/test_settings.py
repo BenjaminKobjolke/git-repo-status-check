@@ -58,6 +58,37 @@ def test_load_all_folders_missing_raises(tmp_path: Path) -> None:
         Settings.load(path)
 
 
+def test_load_reads_commit_command(tmp_path: Path) -> None:
+    folder = tmp_path / "GIT"
+    folder.mkdir()
+    path = tmp_path / "settings.json"
+    path.write_text(
+        json.dumps({"folders": [str(folder)], "commit_command": "do-commit"}),
+        encoding="utf-8",
+    )
+    assert Settings.load(path).commit_command == "do-commit"
+
+
+def test_load_commit_command_absent_is_none(tmp_path: Path) -> None:
+    folder = tmp_path / "GIT"
+    folder.mkdir()
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"folders": [str(folder)]}), encoding="utf-8")
+    assert Settings.load(path).commit_command is None
+
+
+@pytest.mark.parametrize("bad", ["", "   ", 42, ["x"]])
+def test_load_invalid_commit_command_raises(tmp_path: Path, bad: object) -> None:
+    folder = tmp_path / "GIT"
+    folder.mkdir()
+    path = tmp_path / "settings.json"
+    path.write_text(
+        json.dumps({"folders": [str(folder)], "commit_command": bad}), encoding="utf-8"
+    )
+    with pytest.raises(SettingsError):
+        Settings.load(path)
+
+
 def test_resolve_path_prefers_cli(tmp_path: Path) -> None:
     assert resolve_settings_path("custom.json", tmp_path) == Path("custom.json")
 

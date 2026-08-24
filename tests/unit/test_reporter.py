@@ -41,6 +41,16 @@ def test_report_limit_larger_than_list_has_no_suffix(capsys: pytest.CaptureFixtu
     assert "(showing" not in out
 
 
+def test_report_returns_shown_list_unlimited() -> None:
+    statuses = _statuses(3)
+    assert reporter.report(statuses) == statuses
+
+
+def test_report_returns_shown_list_when_limited() -> None:
+    statuses = _statuses(5)
+    assert reporter.report(statuses, limit=2) == statuses[:2]
+
+
 def test_progress_noops_when_not_tty(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

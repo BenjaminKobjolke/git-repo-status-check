@@ -3,7 +3,7 @@
 `main.py` (or `start.bat`) accepts the following arguments. All are optional.
 
 ```
-uv run python main.py [--settings PATH] [--limit N] [--debug]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--debug]
 ```
 
 ## `--settings PATH`
@@ -42,6 +42,24 @@ the `N` most recently changed repos.
 
 ```bat
 uv run python main.py --limit 10
+```
+
+## `--commit-ask`
+
+After the report, walk the same dirty repos it showed (respecting `--limit`, newest first)
+and prompt for each:
+
+- `c` — run the configured `commit_command` in that repo's directory (output streams live).
+- `s` — skip this repo.
+- `a` — abort the loop; no further repos are touched.
+
+Requires a non-empty `commit_command` in settings.json (see
+[SETTINGS.md](SETTINGS.md)); without it the tool prints an error and exits 1 **before
+scanning**. Needs an interactive terminal — with piped/redirected stdin it prints a notice
+and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
+
+```bat
+uv run python main.py --commit-ask
 ```
 
 ## `--debug`

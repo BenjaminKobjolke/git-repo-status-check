@@ -16,6 +16,7 @@ NOISE_DIRS: frozenset[str] = frozenset(
 
 # settings.json keys.
 KEY_FOLDERS = "folders"
+KEY_COMMIT_COMMAND = "commit_command"
 
 # Environment override for the settings file path.
 ENV_SETTINGS_PATH = "GIT_REPO_STATUS_SETTINGS"

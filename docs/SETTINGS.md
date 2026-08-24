@@ -25,14 +25,16 @@ copy settings.example.json settings.json
 
 ## Format
 
-A JSON object with a single key, `folders`: a non-empty list of root folder paths to scan.
+A JSON object with a required `folders` key (a non-empty list of root folder paths) and an
+optional `commit_command` key used by `--commit-ask`.
 
 ```json
 {
   "folders": [
     "D:\\GIT",
     "C:\\Users\\me\\projects"
-  ]
+  ],
+  "commit_command": "codex --yolo \"git commit and push\""
 }
 ```
 
@@ -43,6 +45,22 @@ A JSON object with a single key, `folders`: a non-empty list of root folder path
   [SCANNING.md](SCANNING.md)).
 - On Windows, escape backslashes in JSON: `"D:\\GIT"`. Forward slashes also work:
   `"D:/GIT"`.
+
+### `commit_command`
+
+- Type: string. Optional; omit it if you don't use `--commit-ask`.
+- The command run in each repo's directory when you answer `c` at the `--commit-ask` prompt
+  (see [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md)).
+- Run via the shell with the working directory set to the repo, so the command needs no repo
+  path of its own. Output streams live to the console.
+- If present it must be a non-empty string, or settings validation fails.
+
+```json
+{
+  "folders": ["D:\\GIT"],
+  "commit_command": "codex --yolo \"git commit and push using those guidelines D:\\GIT\\...\\commit-fast.md\""
+}
+```
 
 ## Validation
 

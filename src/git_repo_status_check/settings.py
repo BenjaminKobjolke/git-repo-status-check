@@ -11,10 +11,13 @@ from .app_logger import AppLogger
 from .constants import (
     ENV_SETTINGS_PATH,
     EXAMPLE_SETTINGS_FILE,
+    KEY_COMMIT_COMMAND,
     KEY_FOLDERS,
 )
 
-_EXAMPLE_CONTENT = json.dumps({KEY_FOLDERS: ["D:\\GIT"]}, indent=2)
+_EXAMPLE_CONTENT = json.dumps(
+    {KEY_FOLDERS: ["D:\\GIT"], KEY_COMMIT_COMMAND: ""}, indent=2
+)
 
 
 class SettingsError(Exception):
@@ -26,6 +29,7 @@ class Settings:
     """Validated configuration: which root folders to scan."""
 
     folders: tuple[Path, ...]
+    commit_command: str | None = None
 
     @classmethod
     def load(cls, path: Path) -> Settings:
@@ -67,7 +71,20 @@ class Settings:
         if not folders:
             raise SettingsError(f"None of the configured folders in {path} exist.")
 
-        return cls(folders=tuple(folders))
+        commit_command = cls._parse_commit_command(data, path)
+        return cls(folders=tuple(folders), commit_command=commit_command)
+
+    @staticmethod
+    def _parse_commit_command(data: dict[str, object], path: Path) -> str | None:
+        """Optional ``commit_command`` — absent stays None; present must be a non-empty string."""
+        if KEY_COMMIT_COMMAND not in data:
+            return None
+        value = data[KEY_COMMIT_COMMAND]
+        if not isinstance(value, str) or not value.strip():
+            raise SettingsError(
+                f'"{KEY_COMMIT_COMMAND}" in {path} must be a non-empty string.'
+            )
+        return value
 
 
 def resolve_settings_path(cli_path: str | None, project_root: Path) -> Path:

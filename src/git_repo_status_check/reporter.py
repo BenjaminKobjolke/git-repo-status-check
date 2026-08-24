@@ -25,10 +25,11 @@ def clear_progress() -> None:
     print(f"\r{'':<{width - 1}}\r", end="", file=sys.stderr, flush=True)
 
 
-def report(statuses: list[RepoStatus], limit: int | None = None) -> None:
+def report(statuses: list[RepoStatus], limit: int | None = None) -> list[RepoStatus]:
     """Print dirty repos (already sorted newest-first), then a summary line.
 
     ``limit`` caps the number of printed rows; the summary still reports the true total.
+    Returns the exact rows printed so callers (e.g. --commit-ask) reuse the same list.
     """
     shown = statuses if limit is None else statuses[:limit]
     for status in shown:
@@ -39,3 +40,4 @@ def report(statuses: list[RepoStatus], limit: int | None = None) -> None:
     repos = sum(1 for s in statuses if not s.is_submodule)
     suffix = f" (showing {len(shown)})" if limit is not None and len(shown) < len(statuses) else ""
     print(f"\nSummary: {repos} dirty repo(s){suffix}")
+    return shown

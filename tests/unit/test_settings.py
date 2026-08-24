@@ -82,9 +82,7 @@ def test_load_invalid_commit_command_raises(tmp_path: Path, bad: object) -> None
     folder = tmp_path / "GIT"
     folder.mkdir()
     path = tmp_path / "settings.json"
-    path.write_text(
-        json.dumps({"folders": [str(folder)], "commit_command": bad}), encoding="utf-8"
-    )
+    path.write_text(json.dumps({"folders": [str(folder)], "commit_command": bad}), encoding="utf-8")
     with pytest.raises(SettingsError):
         Settings.load(path)
 

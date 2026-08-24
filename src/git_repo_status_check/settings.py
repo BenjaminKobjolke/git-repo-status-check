@@ -15,9 +15,7 @@ from .constants import (
     KEY_FOLDERS,
 )
 
-_EXAMPLE_CONTENT = json.dumps(
-    {KEY_FOLDERS: ["D:\\GIT"], KEY_COMMIT_COMMAND: ""}, indent=2
-)
+_EXAMPLE_CONTENT = json.dumps({KEY_FOLDERS: ["D:\\GIT"], KEY_COMMIT_COMMAND: ""}, indent=2)
 
 
 class SettingsError(Exception):
@@ -81,9 +79,7 @@ class Settings:
             return None
         value = data[KEY_COMMIT_COMMAND]
         if not isinstance(value, str) or not value.strip():
-            raise SettingsError(
-                f'"{KEY_COMMIT_COMMAND}" in {path} must be a non-empty string.'
-            )
+            raise SettingsError(f'"{KEY_COMMIT_COMMAND}" in {path} must be a non-empty string.')
         return value
 
 

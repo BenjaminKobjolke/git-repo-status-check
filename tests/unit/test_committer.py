@@ -71,6 +71,18 @@ def test_invalid_input_reprompts(
     mock_run.assert_called_once()
 
 
+def test_list_files_reprompts_and_prints_changes(
+    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(committer, "_run_git", lambda p, a: " M foo.py\n?? bar.txt\n")
+    _answers(monkeypatch, "l", "c")  # list first, then commit the same repo
+    committer.commit_interactive(_statuses(1), "do-commit")
+
+    out = capsys.readouterr().out
+    assert "foo.py" in out and "bar.txt" in out
+    mock_run.assert_called_once()  # 'l' did not consume the repo
+
+
 def test_non_tty_returns_without_prompting(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
 

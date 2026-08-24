@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 from .models import RepoStatus
+from .scanner import _run_git
 
-_PROMPT = "  [c]ommit / [s]kip / [a]bort? "
+_PROMPT = "  [c]ommit / [l]ist files / [s]kip / [a]bort? "
 
 
 def commit_interactive(statuses: list[RepoStatus], command: str) -> None:
@@ -26,7 +28,7 @@ def commit_interactive(statuses: list[RepoStatus], command: str) -> None:
 
     for status in statuses:
         print(f"\n{status.path}  -  {status.dirty_count} uncommitted")
-        choice = _ask()
+        choice = _ask(status.path)
         if choice == "a":
             print("Aborted.")
             return
@@ -35,13 +37,30 @@ def commit_interactive(statuses: list[RepoStatus], command: str) -> None:
         _run_commit(command, status)
 
 
-def _ask() -> str:
-    """Read a c/s/a choice, re-prompting until one is given."""
+def _ask(path: Path) -> str:
+    """Read a c/s/a choice, re-prompting until one is given.
+
+    ``l`` lists the repo's changed files and re-prompts (never returned to the caller).
+    """
     while True:
         choice = input(_PROMPT).strip().lower()
+        if choice == "l":
+            _list_files(path)
+            continue
         if choice in ("c", "s", "a"):
             return choice
-        print("  Please enter c, s, or a.")
+        print("  Please enter c, l, s, or a.")
+
+
+def _list_files(path: Path) -> None:
+    """Print the repo's changed files (git status --short); note when there are none."""
+    output = _run_git(path, ("status", "--short"))
+    lines = [line for line in (output or "").splitlines() if line.strip()]
+    if not lines:
+        print("  (no changes)")
+        return
+    for line in lines:
+        print(f"  {line}")
 
 
 def _run_commit(command: str, status: RepoStatus) -> None:

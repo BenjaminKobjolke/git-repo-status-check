@@ -50,6 +50,7 @@ After the report, walk the same dirty repos it showed (respecting `--limit`, new
 and prompt for each:
 
 - `c` — run the configured `commit_command` in that repo's directory (output streams live).
+- `l` — list the changed files in this repo (`git status --short`), then prompt again.
 - `s` — skip this repo.
 - `a` — abort the loop; no further repos are touched.
 

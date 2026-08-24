@@ -38,15 +38,18 @@ start.bat
 or directly:
 
 ```bat
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--debug]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--list-muted] [--debug]
 ```
 
 - `--settings PATH` — use a settings file other than `settings.json` in the project root
   (also overridable via the `GIT_REPO_STATUS_SETTINGS` environment variable).
 - `--limit N` — show at most `N` repos (newest changes first); summary still reports the true total.
-- `--commit-ask` — after the report, prompt `[c]ommit / [s]kip / [a]bort` per dirty repo and
-  run the `commit_command` from settings in that repo's directory on `c`. Requires a non-empty
-  `commit_command` (aborts before scanning if unset) and an interactive terminal.
+- `--commit-ask` — after the report, prompt `[c]ommit / [l]ist / [m]ute / [s]kip / [a]bort`
+  per dirty repo and run the `commit_command` from settings in that repo's directory on `c`.
+  `m` mutes the repo for a chosen timeframe (`1d`/`1w`/`1m` or custom like `3d`/`2w`); muted
+  repos are silently skipped until the mute expires. Requires a non-empty `commit_command`
+  (aborts before scanning if unset) and an interactive terminal.
+- `--list-muted` — list repos currently muted and the date each is muted until, then exit.
 - `--debug` — enable diagnostic logging.
 
 See [docs/COMMAND_LINE_ARGUMENTS.md](docs/COMMAND_LINE_ARGUMENTS.md),
@@ -74,4 +77,5 @@ tools\run_integration_tests.bat  REM integration tests (creates real temp git re
 
 ## Dependencies
 
-Runtime uses the Python standard library only. Dev tooling: `ruff`, `mypy`, `pytest`.
+Runtime: `SQLAlchemy` (stores `--commit-ask` mutes in a SQLite `mutes.db`). Everything else
+is the Python standard library. Dev tooling: `ruff`, `mypy`, `pytest`.

@@ -24,3 +24,15 @@ ENV_SETTINGS_PATH = "GIT_REPO_STATUS_SETTINGS"
 # Default settings file name (project root).
 DEFAULT_SETTINGS_FILE = "settings.json"
 EXAMPLE_SETTINGS_FILE = "settings.example.json"
+
+# Mute database file name (project root, gitignored — machine-local state).
+MUTE_DB_FILE = "mutes.db"
+
+# Mute timeframe units → seconds. "m" is 30 days (calendar-month approximation).
+DURATION_UNIT_SECONDS: dict[str, int] = {"d": 86400, "w": 604800, "m": 2592000}
+
+# Interactive commit-loop prompts.
+COMMIT_PROMPT = "  [c]ommit / [l]ist files / [m]ute / [s]kip / [a]bort? "
+COMMIT_PROMPT_HELP = "  Please enter c, l, m, s, or a."
+MUTE_PROMPT = "  Mute for [1d] / [1w] / [1m] / custom (e.g. 3d, 2w)? "
+MUTE_PROMPT_HELP = "  Please enter a duration like 1d, 1w, 1m, 3d, or 2w."

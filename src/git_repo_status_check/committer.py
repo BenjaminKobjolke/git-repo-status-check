@@ -8,18 +8,21 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 from pathlib import Path
 
+from .constants import COMMIT_PROMPT, COMMIT_PROMPT_HELP, MUTE_PROMPT, MUTE_PROMPT_HELP
+from .duration import parse_duration
 from .models import RepoStatus
+from .mute_store import MuteStore
 from .scanner import _run_git
 
-_PROMPT = "  [c]ommit / [l]ist files / [s]kip / [a]bort? "
 
-
-def commit_interactive(statuses: list[RepoStatus], command: str) -> None:
+def commit_interactive(statuses: list[RepoStatus], command: str, store: MuteStore) -> None:
     """Walk ``statuses`` (already sorted/limited), prompting to run ``command`` per repo.
 
-    ``c`` runs the command in the repo dir, ``s`` skips it, ``a`` stops the whole loop.
+    ``c`` runs the command in the repo dir, ``s`` skips it, ``m`` mutes it for a chosen
+    timeframe, ``a`` stops the whole loop. Currently-muted repos are skipped silently.
     No-op when stdin is not a TTY (nothing to prompt).
     """
     if not sys.stdin.isatty():
@@ -27,6 +30,8 @@ def commit_interactive(statuses: list[RepoStatus], command: str) -> None:
         return
 
     for status in statuses:
+        if store.is_muted(str(status.path), time.time()):
+            continue
         print(f"\n{status.path}  -  {status.dirty_count} uncommitted")
         choice = _ask(status.path)
         if choice == "a":
@@ -34,22 +39,34 @@ def commit_interactive(statuses: list[RepoStatus], command: str) -> None:
             return
         if choice == "s":
             continue
+        if choice == "m":
+            store.mute(str(status.path), time.time() + _ask_timeframe())
+            continue
         _run_commit(command, status)
 
 
 def _ask(path: Path) -> str:
-    """Read a c/s/a choice, re-prompting until one is given.
+    """Read a c/m/s/a choice, re-prompting until one is given.
 
     ``l`` lists the repo's changed files and re-prompts (never returned to the caller).
     """
     while True:
-        choice = input(_PROMPT).strip().lower()
+        choice = input(COMMIT_PROMPT).strip().lower()
         if choice == "l":
             _list_files(path)
             continue
-        if choice in ("c", "s", "a"):
+        if choice in ("c", "m", "s", "a"):
             return choice
-        print("  Please enter c, l, s, or a.")
+        print(COMMIT_PROMPT_HELP)
+
+
+def _ask_timeframe() -> float:
+    """Read a mute timeframe (1d/1w/1m or custom), re-prompting until valid. Returns seconds."""
+    while True:
+        seconds = parse_duration(input(MUTE_PROMPT))
+        if seconds is not None:
+            return seconds
+        print(MUTE_PROMPT_HELP)
 
 
 def _list_files(path: Path) -> None:

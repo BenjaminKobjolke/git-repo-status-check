@@ -3,7 +3,7 @@
 `main.py` (or `start.bat`) accepts the following arguments. All are optional.
 
 ```
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--debug]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--list-muted] [--debug]
 ```
 
 ## `--settings PATH`
@@ -51,6 +51,9 @@ and prompt for each:
 
 - `c` — run the configured `commit_command` in that repo's directory (output streams live).
 - `l` — list the changed files in this repo (`git status --short`), then prompt again.
+- `m` — mute this repo, then pick a timeframe (`1d` / `1w` / `1m` or a custom value like
+  `3d` / `2w`). The repo is silently skipped in future `--commit-ask` runs until the mute
+  expires (`1m` = 30 days).
 - `s` — skip this repo.
 - `a` — abort the loop; no further repos are touched.
 
@@ -59,8 +62,24 @@ Requires a non-empty `commit_command` in settings.json (see
 scanning**. Needs an interactive terminal — with piped/redirected stdin it prints a notice
 and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
 
+Mutes are stored in a `mutes.db` SQLite file in the project root (gitignored, machine-local).
+
 ```bat
 uv run python main.py --commit-ask
+```
+
+## `--list-muted`
+
+List repos currently muted (via the `--commit-ask` `m` choice) and the date each is muted
+until, soonest expiry first, then exit. Does not scan and does not need a `commit_command`.
+Expired mutes are not shown. Prints `No muted repos.` when none are active.
+
+```bat
+uv run python main.py --list-muted
+```
+
+```
+D:\GIT\some\repo  -  muted until 2026-08-31 08:41
 ```
 
 ## `--debug`

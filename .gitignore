@@ -2,6 +2,7 @@ settings.json
 coding-rules.json
 .claude/
 claude-plans/
+/PLAN_*.md
 .venv/
 __pycache__/
 *.pyc

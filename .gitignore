@@ -10,3 +10,4 @@ __pycache__/
 .pytest_cache/
 tools/analyze_code_config.bat
 code_analysis_results/
+tmp/commit_msg.tmp

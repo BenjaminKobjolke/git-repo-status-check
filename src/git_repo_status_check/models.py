@@ -14,3 +14,11 @@ class RepoStatus:
     dirty_count: int
     is_submodule: bool = False
     latest_change: float = 0.0  # newest mtime among the uncommitted files (epoch seconds)
+
+
+@dataclass(frozen=True)
+class ChangedFile:
+    """One uncommitted file and its on-disk mtime (None if the file is gone)."""
+
+    path: str
+    mtime: float | None

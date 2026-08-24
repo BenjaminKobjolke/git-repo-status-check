@@ -14,7 +14,7 @@ from .constants import (
     GITMODULES_FILE,
     NOISE_DIRS,
 )
-from .models import RepoStatus
+from .models import ChangedFile, RepoStatus
 from .settings import Settings
 
 
@@ -55,24 +55,33 @@ def _porcelain_path(line: str) -> str:
     return path.strip().strip('"')
 
 
+def changed_file_ages(repo: Path) -> list[ChangedFile]:
+    """Return each uncommitted file with its mtime (None if deleted/inaccessible)."""
+    out = _run_git(repo, GIT_STATUS_PORCELAIN)
+    if out is None:
+        return []
+    files: list[ChangedFile] = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        rel = _porcelain_path(line)
+        try:
+            mtime: float | None = (repo / rel).stat().st_mtime
+        except OSError:
+            mtime = None
+        files.append(ChangedFile(path=rel, mtime=mtime))
+    return files
+
+
 def dirty_info(repo: Path) -> tuple[int, float]:
     """Return (uncommitted file count, newest changed-file mtime) for ``repo``.
 
     Counts every ``git status --porcelain`` line; mtime is the max over the changed files
     that still exist on disk (deleted files are skipped). Empty repo → (0, 0.0).
     """
-    out = _run_git(repo, GIT_STATUS_PORCELAIN)
-    if out is None:
-        return 0, 0.0
-    lines = [line for line in out.splitlines() if line.strip()]
-    latest = 0.0
-    for line in lines:
-        try:
-            mtime = (repo / _porcelain_path(line)).stat().st_mtime
-        except OSError:
-            continue  # deleted/inaccessible file — does not contribute an mtime
-        latest = max(latest, mtime)
-    return len(lines), latest
+    files = changed_file_ages(repo)
+    latest = max((f.mtime for f in files if f.mtime is not None), default=0.0)
+    return len(files), latest
 
 
 def _submodule_paths(repo: Path) -> list[Path]:

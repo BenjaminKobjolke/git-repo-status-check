@@ -9,20 +9,30 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
-from .constants import COMMIT_PROMPT, COMMIT_PROMPT_HELP, MUTE_PROMPT, MUTE_PROMPT_HELP
+from .constants import (
+    AGE_DATE_FORMAT,
+    COMMIT_PROMPT,
+    COMMIT_PROMPT_HELP,
+    MORE_PROMPT,
+    MORE_PROMPT_HELP,
+    MUTE_PROMPT,
+    MUTE_PROMPT_HELP,
+)
 from .duration import parse_duration
 from .models import RepoStatus
 from .mute_store import MuteStore
-from .scanner import _run_git
+from .scanner import _run_git, changed_file_ages
 
 
 def commit_interactive(statuses: list[RepoStatus], command: str, store: MuteStore) -> None:
     """Walk ``statuses`` (already sorted/limited), prompting to run ``command`` per repo.
 
-    ``c`` runs the command in the repo dir, ``s`` skips it, ``m`` mutes it for a chosen
-    timeframe, ``a`` stops the whole loop. Currently-muted repos are skipped silently.
+    ``c`` runs the command in the repo dir, ``s`` skips it, ``a`` stops the whole loop,
+    and ``m`` opens a submenu (age of files / list files / mute). Muting waits for a
+    chosen timeframe and skips the repo. Currently-muted repos are skipped silently.
     No-op when stdin is not a TTY (nothing to prompt).
     """
     if not sys.stdin.isatty():
@@ -39,25 +49,62 @@ def commit_interactive(statuses: list[RepoStatus], command: str, store: MuteStor
             return
         if choice == "s":
             continue
-        if choice == "m":
+        if choice == "mute":
             store.mute(str(status.path), time.time() + _ask_timeframe())
             continue
         _run_commit(command, status)
 
 
 def _ask(path: Path) -> str:
-    """Read a c/m/s/a choice, re-prompting until one is given.
-
-    ``l`` lists the repo's changed files and re-prompts (never returned to the caller).
-    """
+    """Read a top-level c/s/a choice; ``m`` opens the submenu. Returns c/s/a/mute."""
     while True:
         choice = input(COMMIT_PROMPT).strip().lower()
+        if choice == "m":
+            if _more_menu(path) == "mute":
+                return "mute"
+            continue  # 'back' — re-show the top prompt
+        if choice in ("c", "s", "a"):
+            return choice
+        print(COMMIT_PROMPT_HELP)
+
+
+def _more_menu(path: Path) -> str:
+    """Submenu: age of files / list files / mute / back. Returns 'mute' or 'back'.
+
+    ``a`` and ``l`` print and re-prompt (they never leave the submenu).
+    """
+    while True:
+        choice = input(MORE_PROMPT).strip().lower()
+        if choice == "a":
+            _list_ages(path)
+            continue
         if choice == "l":
             _list_files(path)
             continue
-        if choice in ("c", "m", "s", "a"):
-            return choice
-        print(COMMIT_PROMPT_HELP)
+        if choice == "m":
+            return "mute"
+        if choice == "b":
+            return "back"
+        print(MORE_PROMPT_HELP)
+
+
+def _list_ages(path: Path) -> None:
+    """Print each changed file's date; collapse to one line when all share a date."""
+    files = changed_file_ages(path)
+    rows = [
+        (datetime.fromtimestamp(f.mtime).strftime(AGE_DATE_FORMAT), f.path)
+        for f in files
+        if f.mtime is not None
+    ]
+    if not rows:
+        print("  (no dated files)")
+        return
+    labels = {date for date, _ in rows}
+    if len(rows) == len(files) and len(labels) == 1:
+        print(f"  All {len(rows)} files: {next(iter(labels))}")
+    else:
+        for date, file_path in rows:
+            print(f"  {date}  {file_path}")
 
 
 def _ask_timeframe() -> float:

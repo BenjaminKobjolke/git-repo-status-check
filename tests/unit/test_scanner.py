@@ -61,6 +61,23 @@ def test_porcelain_path_resolves_rename_arrow() -> None:
     assert scanner._porcelain_path("R  old_name.py -> new_name.py") == "new_name.py"
 
 
+def test_changed_file_ages_returns_path_and_mtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "here.py").write_text("x", encoding="utf-8")
+    porcelain = " M here.py\n D gone.py\n"
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _fake_completed(porcelain))
+    files = scanner.changed_file_ages(tmp_path)
+    assert [f.path for f in files] == ["here.py", "gone.py"]
+    assert files[0].mtime == pytest.approx((tmp_path / "here.py").stat().st_mtime)
+    assert files[1].mtime is None  # deleted file -> no mtime
+
+
+def test_changed_file_ages_empty_on_git_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _fake_completed("", returncode=128))
+    assert scanner.changed_file_ages(Path("repo")) == []
+
+
 def test_dirty_info_skips_deleted_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # A deleted file has no mtime; count still includes it, latest stays 0.
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _fake_completed(" D gone.py\n"))

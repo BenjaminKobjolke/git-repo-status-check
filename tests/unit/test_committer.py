@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from git_repo_status_check import committer
-from git_repo_status_check.models import RepoStatus
+from git_repo_status_check.constants import AGE_DATE_FORMAT
+from git_repo_status_check.models import ChangedFile, RepoStatus
 from git_repo_status_check.mute_store import MuteStore
 
 
@@ -18,7 +20,7 @@ def _statuses(n: int) -> list[RepoStatus]:
 
 
 def _answers(monkeypatch: pytest.MonkeyPatch, *choices: str) -> None:
-    """Feed the given c/s/a choices to input() in order."""
+    """Feed the given menu choices to input() in order."""
     it = iter(choices)
     monkeypatch.setattr("builtins.input", lambda _: next(it))
 
@@ -84,12 +86,84 @@ def test_list_files_reprompts_and_prints_changes(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(committer, "_run_git", lambda p, a: " M foo.py\n?? bar.txt\n")
-    _answers(monkeypatch, "l", "c")  # list first, then commit the same repo
+    _answers(monkeypatch, "m", "l", "b", "c")  # more -> list -> back -> commit
     committer.commit_interactive(_statuses(1), "do-commit", store)
 
     out = capsys.readouterr().out
     assert "foo.py" in out and "bar.txt" in out
     mock_run.assert_called_once()  # 'l' did not consume the repo
+
+
+def test_more_back_returns_to_top(
+    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
+) -> None:
+    _answers(monkeypatch, "m", "b", "c")  # more -> back -> commit the same repo
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+    mock_run.assert_called_once()
+
+
+def test_list_ages_groups_when_all_files_share_one_date(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run: MagicMock,
+    store: MuteStore,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    files = [ChangedFile(path="foo.py", mtime=1000.0), ChangedFile(path="bar.txt", mtime=2000.0)]
+    monkeypatch.setattr(committer, "changed_file_ages", lambda p: files)
+    same_day = datetime.fromtimestamp(1000.0).strftime(AGE_DATE_FORMAT)
+    _answers(monkeypatch, "m", "a", "b", "s")  # more -> age -> back -> skip
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+
+    out = capsys.readouterr().out
+    assert f"All 2 files: {same_day}" in out
+
+
+def test_list_ages_lists_per_file_on_multiple_dates(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run: MagicMock,
+    store: MuteStore,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    early, late = 0.0, 40.0 * 86400.0  # ~40 days apart -> different DD.MM.YYYY
+    files = [ChangedFile(path="foo.py", mtime=early), ChangedFile(path="bar.txt", mtime=late)]
+    monkeypatch.setattr(committer, "changed_file_ages", lambda p: files)
+    _answers(monkeypatch, "m", "a", "b", "s")
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+
+    out = capsys.readouterr().out
+    assert datetime.fromtimestamp(early).strftime(AGE_DATE_FORMAT) in out
+    assert datetime.fromtimestamp(late).strftime(AGE_DATE_FORMAT) in out
+    assert "All " not in out  # not grouped
+
+
+def test_list_ages_does_not_group_when_some_files_undated(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run: MagicMock,
+    store: MuteStore,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    files = [ChangedFile(path="foo.py", mtime=1000.0), ChangedFile(path="gone.py", mtime=None)]
+    monkeypatch.setattr(committer, "changed_file_ages", lambda p: files)
+    _answers(monkeypatch, "m", "a", "b", "s")
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+
+    out = capsys.readouterr().out
+    assert "All " not in out  # one file is undated -> no grouped total
+    assert "foo.py" in out
+
+
+def test_list_ages_reports_no_dated_files(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run: MagicMock,
+    store: MuteStore,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(committer, "changed_file_ages", lambda p: [ChangedFile("gone.py", None)])
+    _answers(monkeypatch, "m", "a", "b", "s")
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+
+    out = capsys.readouterr().out
+    assert "(no dated files)" in out
 
 
 def test_non_tty_returns_without_prompting(
@@ -112,7 +186,7 @@ def test_mute_stores_timeframe_and_skips_commit(
     monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
 ) -> None:
     monkeypatch.setattr(committer.time, "time", lambda: 1000.0)
-    _answers(monkeypatch, "m", "1w")  # mute, then choose one week
+    _answers(monkeypatch, "m", "m", "1w")  # more -> mute -> one week
     committer.commit_interactive(_statuses(1), "do-commit", store)
 
     mock_run.assert_not_called()  # muting does not commit
@@ -124,7 +198,7 @@ def test_mute_reprompts_on_invalid_timeframe(
     monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
 ) -> None:
     monkeypatch.setattr(committer.time, "time", lambda: 0.0)
-    _answers(monkeypatch, "m", "nope", "1d")  # bad timeframe, then a good one
+    _answers(monkeypatch, "m", "m", "nope", "1d")  # more -> mute -> bad, then good
     committer.commit_interactive(_statuses(1), "do-commit", store)
     assert store.is_muted(str(Path("repo0")), now=0.0) is True
 

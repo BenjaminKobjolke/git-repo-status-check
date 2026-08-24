@@ -32,7 +32,12 @@ MUTE_DB_FILE = "mutes.db"
 DURATION_UNIT_SECONDS: dict[str, int] = {"d": 86400, "w": 604800, "m": 2592000}
 
 # Interactive commit-loop prompts.
-COMMIT_PROMPT = "  [c]ommit / [l]ist files / [m]ute / [s]kip / [a]bort? "
-COMMIT_PROMPT_HELP = "  Please enter c, l, m, s, or a."
+COMMIT_PROMPT = "  [c]ommit / [m]ore / [s]kip / [a]bort? "
+COMMIT_PROMPT_HELP = "  Please enter c, m, s, or a."
+MORE_PROMPT = "  [a]ge of files / [l]ist files / [m]ute / [b]ack? "
+MORE_PROMPT_HELP = "  Please enter a, l, m, or b."
 MUTE_PROMPT = "  Mute for [1d] / [1w] / [1m] / custom (e.g. 3d, 2w)? "
 MUTE_PROMPT_HELP = "  Please enter a duration like 1d, 1w, 1m, 3d, or 2w."
+
+# Date format for the changed-file age display.
+AGE_DATE_FORMAT = "%d.%m.%Y"

@@ -25,8 +25,9 @@ copy settings.example.json settings.json
 
 ## Format
 
-A JSON object with a required `folders` key (a non-empty list of root folder paths) and an
-optional `commit_command` key used by `--commit-ask`.
+A JSON object with a required `folders` key (a non-empty list of root folder paths), an
+optional `commit_command` key used by `--commit-ask`, and an optional `ignore_prefixes` key
+that skips folders by name prefix during scanning.
 
 ```json
 {
@@ -34,7 +35,8 @@ optional `commit_command` key used by `--commit-ask`.
     "D:\\GIT",
     "C:\\Users\\me\\projects"
   ],
-  "commit_command": "codex --yolo \"git commit and push\""
+  "commit_command": "codex --yolo \"git commit and push\"",
+  "ignore_prefixes": ["_old_"]
 }
 ```
 
@@ -62,6 +64,23 @@ optional `commit_command` key used by `--commit-ask`.
 }
 ```
 
+### `ignore_prefixes`
+
+- Type: list of non-empty strings. Optional; defaults to none (no folders skipped).
+- Any directory whose name **starts with** one of these prefixes is pruned from the scan
+  walk — not descended into, not reported. Handy for archived trees like `_old_project`.
+- Matching is **case-sensitive** and applies to the discovery walk only. A configured **root**
+  in `folders` is chosen explicitly and is never filtered by a prefix; only subfolders
+  encountered while walking are pruned.
+- If present it must be a list of non-empty strings, or settings validation fails.
+
+```json
+{
+  "folders": ["D:\\GIT"],
+  "ignore_prefixes": ["_old_", "archive_"]
+}
+```
+
 ## Validation
 
 Settings are validated on load; the tool fails fast with a clear message when:
@@ -69,7 +88,8 @@ Settings are validated on load; the tool fails fast with a clear message when:
 - the file is not valid JSON,
 - there is no `folders` key, or it is not a non-empty list,
 - a `folders` entry is not a string,
-- **none** of the listed folders exist.
+- **none** of the listed folders exist,
+- `ignore_prefixes` is present but is not a list of non-empty strings.
 
 A listed folder that does not exist is **skipped with a warning** (visible with `--debug`), as
 long as at least one folder is valid. This lets one shared settings file cover multiple machines

@@ -1,0 +1,45 @@
+# `--commit-ask` Interactive Menu
+
+`--commit-ask` walks the same dirty repos the report showed (respecting `--limit`,
+newest first) and prompts per repo. This documents every menu choice. For the flag
+itself and its requirements, see [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md).
+
+Needs an interactive terminal and a non-empty `commit_command` in settings (see
+[SETTINGS.md](SETTINGS.md)). Currently-muted repos are skipped silently.
+
+## Top prompt
+
+```
+<repo path>  -  <N> uncommitted
+  [c]ommit / [m]ore / [s]kip / [a]bort?
+```
+
+| Key | Action |
+|-----|--------|
+| `c` | Run the configured `commit_command` in this repo's directory (output streams live). Then move to the next repo. |
+| `m` | Open the **more** submenu (below). |
+| `s` | Skip this repo; move to the next. |
+| `a` | Abort the loop. No further repos are touched. |
+
+## More submenu
+
+```
+  [a]ge of files / [l]ist files / [p]ull / [m]ute / [b]ack?
+```
+
+| Key | Action |
+|-----|--------|
+| `a` | Show the modification date of each changed file. When every changed file shares the same date, it collapses to one line (e.g. `All 5 files: 22.08.2026`); otherwise each file is listed with its date. Re-prompts. |
+| `l` | List the changed files in this repo (`git status --short`). Re-prompts. |
+| `p` | Run `git pull` in this repo (live output). Use it to fast-forward before committing. A plain pull — if it can't proceed (e.g. local changes conflict) it fails loudly and nothing else is touched. Re-prompts. |
+| `m` | Mute this repo, then pick a timeframe (`1d` / `1w` / `1m`, or custom like `3d` / `2w`). The repo is silently skipped in future `--commit-ask` runs until the mute expires (`1m` = 30 days). Returns to the loop (moves to the next repo). |
+| `b` | Back to the top prompt for this repo. |
+
+`a`, `l`, and `p` act and re-show the submenu — they never consume the repo. Only
+`c` (top prompt) commits; only `m` mutes.
+
+## See also
+
+- [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md) — all flags, including `--list-muted`.
+- [SETTINGS.md](SETTINGS.md) — the `commit_command` key.
+- [CODEX.md](CODEX.md) — commit-with-Codex `commit_command` examples.

@@ -87,6 +87,37 @@ def test_load_invalid_commit_command_raises(tmp_path: Path, bad: object) -> None
         Settings.load(path)
 
 
+def test_load_ignore_prefixes_absent_is_empty(tmp_path: Path) -> None:
+    folder = tmp_path / "GIT"
+    folder.mkdir()
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"folders": [str(folder)]}), encoding="utf-8")
+    assert Settings.load(path).ignore_prefixes == ()
+
+
+def test_load_reads_ignore_prefixes(tmp_path: Path) -> None:
+    folder = tmp_path / "GIT"
+    folder.mkdir()
+    path = tmp_path / "settings.json"
+    path.write_text(
+        json.dumps({"folders": [str(folder)], "ignore_prefixes": ["_old_", "tmp_"]}),
+        encoding="utf-8",
+    )
+    assert Settings.load(path).ignore_prefixes == ("_old_", "tmp_")
+
+
+@pytest.mark.parametrize("bad", ["_old_", 42, ["ok", ""], [1], [None]])
+def test_load_invalid_ignore_prefixes_raises(tmp_path: Path, bad: object) -> None:
+    folder = tmp_path / "GIT"
+    folder.mkdir()
+    path = tmp_path / "settings.json"
+    path.write_text(
+        json.dumps({"folders": [str(folder)], "ignore_prefixes": bad}), encoding="utf-8"
+    )
+    with pytest.raises(SettingsError):
+        Settings.load(path)
+
+
 def test_resolve_path_prefers_cli(tmp_path: Path) -> None:
     assert resolve_settings_path("custom.json", tmp_path) == Path("custom.json")
 

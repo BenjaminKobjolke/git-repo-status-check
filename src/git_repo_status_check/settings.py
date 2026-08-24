@@ -13,9 +13,13 @@ from .constants import (
     EXAMPLE_SETTINGS_FILE,
     KEY_COMMIT_COMMAND,
     KEY_FOLDERS,
+    KEY_IGNORE_PREFIXES,
 )
 
-_EXAMPLE_CONTENT = json.dumps({KEY_FOLDERS: ["D:\\GIT"], KEY_COMMIT_COMMAND: ""}, indent=2)
+_EXAMPLE_CONTENT = json.dumps(
+    {KEY_FOLDERS: ["D:\\GIT"], KEY_COMMIT_COMMAND: "", KEY_IGNORE_PREFIXES: ["_old_"]},
+    indent=2,
+)
 
 
 class SettingsError(Exception):
@@ -28,6 +32,7 @@ class Settings:
 
     folders: tuple[Path, ...]
     commit_command: str | None = None
+    ignore_prefixes: tuple[str, ...] = ()
 
     @classmethod
     def load(cls, path: Path) -> Settings:
@@ -70,7 +75,12 @@ class Settings:
             raise SettingsError(f"None of the configured folders in {path} exist.")
 
         commit_command = cls._parse_commit_command(data, path)
-        return cls(folders=tuple(folders), commit_command=commit_command)
+        ignore_prefixes = cls._parse_ignore_prefixes(data, path)
+        return cls(
+            folders=tuple(folders),
+            commit_command=commit_command,
+            ignore_prefixes=ignore_prefixes,
+        )
 
     @staticmethod
     def _parse_commit_command(data: dict[str, object], path: Path) -> str | None:
@@ -81,6 +91,24 @@ class Settings:
         if not isinstance(value, str) or not value.strip():
             raise SettingsError(f'"{KEY_COMMIT_COMMAND}" in {path} must be a non-empty string.')
         return value
+
+    @staticmethod
+    def _parse_ignore_prefixes(data: dict[str, object], path: Path) -> tuple[str, ...]:
+        """Optional ``ignore_prefixes`` — absent stays empty; folders whose name starts
+        with any prefix are skipped during scanning. Must be a list of non-empty strings."""
+        if KEY_IGNORE_PREFIXES not in data:
+            return ()
+        value = data[KEY_IGNORE_PREFIXES]
+        if not isinstance(value, list):
+            raise SettingsError(f'"{KEY_IGNORE_PREFIXES}" in {path} must be a list of strings.')
+        prefixes: list[str] = []
+        for entry in value:
+            if not isinstance(entry, str) or not entry:
+                raise SettingsError(
+                    f'"{KEY_IGNORE_PREFIXES}" entries must be non-empty strings, got: {entry!r}'
+                )
+            prefixes.append(entry)
+        return tuple(prefixes)
 
 
 def resolve_settings_path(cli_path: str | None, project_root: Path) -> Path:

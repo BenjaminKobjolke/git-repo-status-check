@@ -94,6 +94,18 @@ def test_list_files_reprompts_and_prints_changes(
     mock_run.assert_called_once()  # 'l' did not consume the repo
 
 
+def test_pull_runs_git_pull_and_reprompts(
+    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
+) -> None:
+    _answers(monkeypatch, "m", "p", "b", "c")  # more -> pull -> back -> commit
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+
+    # subprocess.run fires twice: once for the pull, once for the commit command.
+    assert mock_run.call_count == 2
+    pull_args = mock_run.call_args_list[0].args[0]
+    assert tuple(pull_args) == ("git", "-C", str(Path("repo0")), "pull")
+
+
 def test_more_back_returns_to_top(
     monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
 ) -> None:

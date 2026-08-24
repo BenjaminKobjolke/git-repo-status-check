@@ -18,15 +18,21 @@ from .models import ChangedFile, RepoStatus
 from .settings import Settings
 
 
-def find_repos(root: Path) -> Iterator[Path]:
-    """Yield each git repo under ``root``, not descending into a repo once found."""
+def find_repos(root: Path, ignore_prefixes: tuple[str, ...] = ()) -> Iterator[Path]:
+    """Yield each git repo under ``root``, not descending into a repo once found.
+
+    Directories whose name starts with any of ``ignore_prefixes`` are pruned from the
+    walk (case-sensitive). An empty tuple prunes nothing.
+    """
     for dirpath, dirnames, _files in os.walk(root):
         current = Path(dirpath)
         if (current / GIT_DIR).exists():
             yield current
             dirnames[:] = []  # stop descending into a repo
             continue
-        dirnames[:] = [d for d in dirnames if d not in NOISE_DIRS]
+        dirnames[:] = [
+            d for d in dirnames if d not in NOISE_DIRS and not d.startswith(ignore_prefixes)
+        ]
 
 
 def _run_git(repo: Path, args: tuple[str, ...]) -> str | None:
@@ -42,7 +48,13 @@ def _run_git(repo: Path, args: tuple[str, ...]) -> str | None:
         AppLogger.error("git executable not found on PATH.")
         return None
     if result.returncode != 0:
-        AppLogger.warning(f"git {' '.join(args)} failed in {repo}: {result.stderr.strip()}")
+        stderr = result.stderr.strip()
+        # .git can exist yet be unreadable (dead gitlink/worktree pointer, empty dir).
+        # Warn cleanly instead of dumping the raw fatal; the repo is skipped either way.
+        if "not a git repository" in stderr:
+            AppLogger.warning(f"{repo}: .git present but not a valid git repository — skipping")
+        else:
+            AppLogger.warning(f"git {' '.join(args)} failed in {repo}: {stderr}")
         return None
     return result.stdout
 
@@ -139,7 +151,7 @@ def scan_all(settings: Settings, on_repo: Callable[[Path], None] | None = None) 
     results: list[RepoStatus] = []
     for root in settings.folders:
         AppLogger.debug(f"Scanning {root}")
-        for repo in find_repos(root):
+        for repo in find_repos(root, settings.ignore_prefixes):
             if on_repo is not None:
                 on_repo(repo)
             results.extend(scan_repo(repo))

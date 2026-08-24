@@ -53,6 +53,7 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--list-muted
 - `--debug` — enable diagnostic logging.
 
 See [docs/COMMAND_LINE_ARGUMENTS.md](docs/COMMAND_LINE_ARGUMENTS.md),
+[docs/COMMIT_ASK_MENU.md](docs/COMMIT_ASK_MENU.md) (the `--commit-ask` menu),
 [docs/SETTINGS.md](docs/SETTINGS.md), and [docs/CODEX.md](docs/CODEX.md) (commit-with-Codex
 examples) for details.
 

@@ -81,6 +81,9 @@ def _more_menu(path: Path) -> str:
         if choice == "l":
             _list_files(path)
             continue
+        if choice == "p":
+            _run_pull(path)
+            continue
         if choice == "m":
             return "mute"
         if choice == "b":
@@ -125,6 +128,19 @@ def _list_files(path: Path) -> None:
         return
     for line in lines:
         print(f"  {line}")
+
+
+def _run_pull(path: Path) -> None:
+    """Run ``git pull`` in the repo dir with live output; report the result.
+
+    Streams like ``_run_commit`` (not captured like ``scanner._run_git``) so the
+    user sees fetch/merge progress. Plain pull — failures surface as-is.
+    """
+    result = subprocess.run(("git", "-C", str(path), "pull"), check=False)
+    if result.returncode == 0:
+        print(f"  OK (pull): {path}")
+    else:
+        print(f"  FAILED (pull, exit {result.returncode}): {path}")
 
 
 def _run_commit(command: str, status: RepoStatus) -> None:

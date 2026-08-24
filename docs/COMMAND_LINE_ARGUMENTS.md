@@ -50,17 +50,23 @@ After the report, walk the same dirty repos it showed (respecting `--limit`, new
 and prompt for each: `[c]ommit / [m]ore / [s]kip / [a]bort`.
 
 - `c` — run the configured `commit_command` in that repo's directory (output streams live).
-- `m` — open a submenu of secondary actions: `[a]ge of files / [l]ist files / [m]ute / [b]ack`.
+- `m` — open a submenu of secondary actions:
+  `[a]ge of files / [l]ist files / [p]ull / [m]ute / [b]ack`.
   - `a` — show the modification date of each changed file. When every changed file shares
     the same date, it collapses to one line (e.g. `All 5 files: 22.08.2026`); otherwise each
     file is listed with its date.
   - `l` — list the changed files in this repo (`git status --short`), then prompt again.
+  - `p` — run `git pull` in this repo (live output), then prompt again. Use it to
+    fast-forward before committing. A plain pull — if it can't proceed (e.g. local
+    changes conflict) it fails loudly and nothing else is touched.
   - `m` — mute this repo, then pick a timeframe (`1d` / `1w` / `1m` or a custom value like
     `3d` / `2w`). The repo is silently skipped in future `--commit-ask` runs until the mute
     expires (`1m` = 30 days).
   - `b` — back to the top prompt.
 - `s` — skip this repo.
 - `a` — abort the loop; no further repos are touched.
+
+See [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) for the full menu reference.
 
 Requires a non-empty `commit_command` in settings.json (see
 [SETTINGS.md](SETTINGS.md)); without it the tool prints an error and exits 1 **before

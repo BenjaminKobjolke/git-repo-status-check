@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -13,10 +14,12 @@ from git_repo_status_check import scanner
 from git_repo_status_check.constants import GIT_DIR
 
 
-def _fake_completed(stdout: str, returncode: int = 0) -> subprocess.CompletedProcess[str]:
+def _fake_completed(
+    stdout: str, returncode: int = 0, stderr: str = ""
+) -> subprocess.CompletedProcess[str]:
     proc = MagicMock(spec=subprocess.CompletedProcess)
     proc.stdout = stdout
-    proc.stderr = ""
+    proc.stderr = stderr
     proc.returncode = returncode
     return proc
 
@@ -41,6 +44,22 @@ def test_dirty_info_clean_repo_is_zero(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_dirty_info_returns_zero_on_git_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _fake_completed("", returncode=128))
     assert scanner.dirty_info(Path("repo")) == (0, 0.0)
+
+
+def test_run_git_not_a_repo_warns_cleanly(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # .git exists but is broken (dead gitlink/worktree) -> git prints a fatal. The repo
+    # is still skipped, but the warning must be clean, not the raw fatal stderr.
+    stderr = "fatal: not a git repository (or any of the parent directories): .git"
+    monkeypatch.setattr(
+        subprocess, "run", lambda *a, **k: _fake_completed("", returncode=128, stderr=stderr)
+    )
+    with caplog.at_level(logging.WARNING, logger="git_repo_status_check"):
+        assert scanner.dirty_info(Path("repo")) == (0, 0.0)
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("not a valid git repository" in m for m in messages)
+    assert not any("fatal:" in m for m in messages)
 
 
 def test_dirty_info_uses_newest_mtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,3 +135,16 @@ def test_find_repos_skips_noise_dirs(tmp_path: Path) -> None:
     (tmp_path / "real" / GIT_DIR).mkdir(parents=True)
     found = list(scanner.find_repos(tmp_path))
     assert found == [tmp_path / "real"]
+
+
+def test_find_repos_skips_ignore_prefixes(tmp_path: Path) -> None:
+    (tmp_path / "_old_foo" / GIT_DIR).mkdir(parents=True)
+    (tmp_path / "real" / GIT_DIR).mkdir(parents=True)
+    found = list(scanner.find_repos(tmp_path, ("_old_",)))
+    assert found == [tmp_path / "real"]
+
+
+def test_find_repos_default_keeps_prefixed_dirs(tmp_path: Path) -> None:
+    (tmp_path / "_old_foo" / GIT_DIR).mkdir(parents=True)
+    found = list(scanner.find_repos(tmp_path))
+    assert found == [tmp_path / "_old_foo"]

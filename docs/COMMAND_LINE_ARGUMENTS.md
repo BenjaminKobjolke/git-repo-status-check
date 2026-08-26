@@ -20,7 +20,9 @@ Path to the settings file to use instead of `settings.json` in the project root.
 uv run python main.py --settings C:\configs\my-git-roots.json
 ```
 
-The file is a JSON object with a `folders` list of root paths to scan:
+The file is a JSON object with a required `folders` list of root paths to scan, plus the
+optional `commit_command`, `ignore_prefixes` and `min_modified_age` keys (see
+[SETTINGS.md](SETTINGS.md)):
 
 ```json
 {
@@ -60,7 +62,7 @@ and prompt for each: `[c]ommit / [m]ore / [s]kip / [a]bort`.
     fast-forward before committing. A plain pull — if it can't proceed (e.g. local
     changes conflict) it fails loudly and nothing else is touched.
   - `m` — mute this repo, then pick a timeframe (`1d` / `1w` / `1m` or a custom value like
-    `3d` / `2w`). The repo is silently skipped in future `--commit-ask` runs until the mute
+    `4h` / `3d` / `2w`). The repo is silently skipped in future `--commit-ask` runs until the mute
     expires (`1m` = 30 days).
   - `b` — back to the top prompt.
 - `s` — skip this repo.
@@ -72,6 +74,10 @@ Requires a non-empty `commit_command` in settings.json (see
 [SETTINGS.md](SETTINGS.md)); without it the tool prints an error and exits 1 **before
 scanning**. Needs an interactive terminal — with piped/redirected stdin it prints a notice
 and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
+
+Repos whose newest changed file is younger than the optional `min_modified_age` setting are
+skipped silently too — they still appear in the report, they just are not prompted. See
+[SETTINGS.md](SETTINGS.md).
 
 Mutes are stored in a `mutes.db` SQLite file in the project root (gitignored, machine-local).
 

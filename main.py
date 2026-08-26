@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     shown = report(statuses, limit=args.limit)
 
     if args.commit_ask and settings.commit_command:
-        commit_interactive(shown, settings.commit_command, store)
+        commit_interactive(shown, settings.commit_command, store, settings.min_modified_age)
     return 0
 
 

@@ -18,6 +18,7 @@ NOISE_DIRS: frozenset[str] = frozenset(
 KEY_FOLDERS = "folders"
 KEY_COMMIT_COMMAND = "commit_command"
 KEY_IGNORE_PREFIXES = "ignore_prefixes"
+KEY_MIN_MODIFIED_AGE = "min_modified_age"
 
 # Environment override for the settings file path.
 ENV_SETTINGS_PATH = "GIT_REPO_STATUS_SETTINGS"
@@ -29,16 +30,16 @@ EXAMPLE_SETTINGS_FILE = "settings.example.json"
 # Mute database file name (project root, gitignored — machine-local state).
 MUTE_DB_FILE = "mutes.db"
 
-# Mute timeframe units → seconds. "m" is 30 days (calendar-month approximation).
-DURATION_UNIT_SECONDS: dict[str, int] = {"d": 86400, "w": 604800, "m": 2592000}
+# Duration units → seconds. "m" is 30 days (calendar-month approximation), not minutes.
+DURATION_UNIT_SECONDS: dict[str, int] = {"h": 3600, "d": 86400, "w": 604800, "m": 2592000}
 
 # Interactive commit-loop prompts.
 COMMIT_PROMPT = "  [c]ommit / [m]ore / [s]kip / [a]bort? "
 COMMIT_PROMPT_HELP = "  Please enter c, m, s, or a."
 MORE_PROMPT = "  [a]ge of files / [l]ist files / [p]ull / [m]ute / [b]ack? "
 MORE_PROMPT_HELP = "  Please enter a, l, p, m, or b."
-MUTE_PROMPT = "  Mute for [1d] / [1w] / [1m] / custom (e.g. 3d, 2w)? "
-MUTE_PROMPT_HELP = "  Please enter a duration like 1d, 1w, 1m, 3d, or 2w."
+MUTE_PROMPT = "  Mute for [1d] / [1w] / [1m] / custom (e.g. 4h, 3d, 2w)? "
+MUTE_PROMPT_HELP = "  Please enter a duration like 4h, 1d, 1w, 1m, 3d, or 2w."
 
 # Date format for the changed-file age display.
 AGE_DATE_FORMAT = "%d.%m.%Y"

@@ -11,14 +11,20 @@ from git_repo_status_check.constants import ENV_SETTINGS_PATH, EXAMPLE_SETTINGS_
 from git_repo_status_check.settings import Settings, SettingsError, resolve_settings_path
 
 
-def test_load_valid_settings(tmp_path: Path) -> None:
+def _write_settings(tmp_path: Path, **extra: object) -> Path:
+    """Write a settings.json with one existing folder plus any keys under test."""
     folder = tmp_path / "GIT"
-    folder.mkdir()
+    folder.mkdir(exist_ok=True)
     path = tmp_path / "settings.json"
-    path.write_text(json.dumps({"folders": [str(folder)]}), encoding="utf-8")
+    path.write_text(json.dumps({"folders": [str(folder)], **extra}), encoding="utf-8")
+    return path
+
+
+def test_load_valid_settings(tmp_path: Path) -> None:
+    path = _write_settings(tmp_path)
 
     settings = Settings.load(path)
-    assert settings.folders == (folder,)
+    assert settings.folders == (tmp_path / "GIT",)
 
 
 def test_load_missing_file_writes_example_and_raises(tmp_path: Path) -> None:
@@ -59,61 +65,52 @@ def test_load_all_folders_missing_raises(tmp_path: Path) -> None:
 
 
 def test_load_reads_commit_command(tmp_path: Path) -> None:
-    folder = tmp_path / "GIT"
-    folder.mkdir()
-    path = tmp_path / "settings.json"
-    path.write_text(
-        json.dumps({"folders": [str(folder)], "commit_command": "do-commit"}),
-        encoding="utf-8",
-    )
+    path = _write_settings(tmp_path, commit_command="do-commit")
     assert Settings.load(path).commit_command == "do-commit"
 
 
 def test_load_commit_command_absent_is_none(tmp_path: Path) -> None:
-    folder = tmp_path / "GIT"
-    folder.mkdir()
-    path = tmp_path / "settings.json"
-    path.write_text(json.dumps({"folders": [str(folder)]}), encoding="utf-8")
+    path = _write_settings(tmp_path)
     assert Settings.load(path).commit_command is None
 
 
 @pytest.mark.parametrize("bad", ["", "   ", 42, ["x"]])
 def test_load_invalid_commit_command_raises(tmp_path: Path, bad: object) -> None:
-    folder = tmp_path / "GIT"
-    folder.mkdir()
-    path = tmp_path / "settings.json"
-    path.write_text(json.dumps({"folders": [str(folder)], "commit_command": bad}), encoding="utf-8")
+    path = _write_settings(tmp_path, commit_command=bad)
     with pytest.raises(SettingsError):
         Settings.load(path)
 
 
 def test_load_ignore_prefixes_absent_is_empty(tmp_path: Path) -> None:
-    folder = tmp_path / "GIT"
-    folder.mkdir()
-    path = tmp_path / "settings.json"
-    path.write_text(json.dumps({"folders": [str(folder)]}), encoding="utf-8")
+    path = _write_settings(tmp_path)
     assert Settings.load(path).ignore_prefixes == ()
 
 
 def test_load_reads_ignore_prefixes(tmp_path: Path) -> None:
-    folder = tmp_path / "GIT"
-    folder.mkdir()
-    path = tmp_path / "settings.json"
-    path.write_text(
-        json.dumps({"folders": [str(folder)], "ignore_prefixes": ["_old_", "tmp_"]}),
-        encoding="utf-8",
-    )
+    path = _write_settings(tmp_path, ignore_prefixes=["_old_", "tmp_"])
     assert Settings.load(path).ignore_prefixes == ("_old_", "tmp_")
 
 
 @pytest.mark.parametrize("bad", ["_old_", 42, ["ok", ""], [1], [None]])
 def test_load_invalid_ignore_prefixes_raises(tmp_path: Path, bad: object) -> None:
-    folder = tmp_path / "GIT"
-    folder.mkdir()
-    path = tmp_path / "settings.json"
-    path.write_text(
-        json.dumps({"folders": [str(folder)], "ignore_prefixes": bad}), encoding="utf-8"
-    )
+    path = _write_settings(tmp_path, ignore_prefixes=bad)
+    with pytest.raises(SettingsError):
+        Settings.load(path)
+
+
+def test_load_min_modified_age_absent_is_none(tmp_path: Path) -> None:
+    path = _write_settings(tmp_path)
+    assert Settings.load(path).min_modified_age is None
+
+
+def test_load_reads_min_modified_age(tmp_path: Path) -> None:
+    path = _write_settings(tmp_path, min_modified_age="1h")
+    assert Settings.load(path).min_modified_age == 3600.0
+
+
+@pytest.mark.parametrize("bad", ["", "banana", "0h", "1y", 42, ["1h"]])
+def test_load_invalid_min_modified_age_raises(tmp_path: Path, bad: object) -> None:
+    path = _write_settings(tmp_path, min_modified_age=bad)
     with pytest.raises(SettingsError):
         Settings.load(path)
 

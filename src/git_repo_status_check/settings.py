@@ -14,10 +14,17 @@ from .constants import (
     KEY_COMMIT_COMMAND,
     KEY_FOLDERS,
     KEY_IGNORE_PREFIXES,
+    KEY_MIN_MODIFIED_AGE,
 )
+from .duration import parse_duration
 
 _EXAMPLE_CONTENT = json.dumps(
-    {KEY_FOLDERS: ["D:\\GIT"], KEY_COMMIT_COMMAND: "", KEY_IGNORE_PREFIXES: ["_old_"]},
+    {
+        KEY_FOLDERS: ["D:\\GIT"],
+        KEY_COMMIT_COMMAND: "",
+        KEY_IGNORE_PREFIXES: ["_old_"],
+        KEY_MIN_MODIFIED_AGE: "1h",
+    },
     indent=2,
 )
 
@@ -33,6 +40,7 @@ class Settings:
     folders: tuple[Path, ...]
     commit_command: str | None = None
     ignore_prefixes: tuple[str, ...] = ()
+    min_modified_age: float | None = None
 
     @classmethod
     def load(cls, path: Path) -> Settings:
@@ -76,10 +84,12 @@ class Settings:
 
         commit_command = cls._parse_commit_command(data, path)
         ignore_prefixes = cls._parse_ignore_prefixes(data, path)
+        min_modified_age = cls._parse_min_modified_age(data, path)
         return cls(
             folders=tuple(folders),
             commit_command=commit_command,
             ignore_prefixes=ignore_prefixes,
+            min_modified_age=min_modified_age,
         )
 
     @staticmethod
@@ -91,6 +101,22 @@ class Settings:
         if not isinstance(value, str) or not value.strip():
             raise SettingsError(f'"{KEY_COMMIT_COMMAND}" in {path} must be a non-empty string.')
         return value
+
+    @staticmethod
+    def _parse_min_modified_age(data: dict[str, object], path: Path) -> float | None:
+        """Optional ``min_modified_age`` -- absent stays None; present must be a duration.
+
+        Validated here rather than at use time so a typo fails before a slow scan runs.
+        """
+        if KEY_MIN_MODIFIED_AGE not in data:
+            return None
+        value = data[KEY_MIN_MODIFIED_AGE]
+        seconds = parse_duration(value) if isinstance(value, str) else None
+        if seconds is None:
+            raise SettingsError(
+                f'"{KEY_MIN_MODIFIED_AGE}" in {path} must be a duration like "1h", "3d" or "2w".'
+            )
+        return seconds
 
     @staticmethod
     def _parse_ignore_prefixes(data: dict[str, object], path: Path) -> tuple[str, ...]:

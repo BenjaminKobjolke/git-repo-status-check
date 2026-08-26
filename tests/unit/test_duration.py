@@ -6,6 +6,7 @@ import pytest
 
 from git_repo_status_check.duration import parse_duration
 
+_HOUR = 3600.0
 _DAY = 86400.0
 _WEEK = 604800.0
 _MONTH = 2592000.0
@@ -14,9 +15,11 @@ _MONTH = 2592000.0
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
+        ("1h", _HOUR),
         ("1d", _DAY),
         ("1w", _WEEK),
         ("1m", _MONTH),
+        ("2h", 2 * _HOUR),
         ("3d", 3 * _DAY),
         ("2w", 2 * _WEEK),
         (" 1d ", _DAY),  # surrounding whitespace tolerated

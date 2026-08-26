@@ -1,5 +1,8 @@
 {
   "folders": [
     "D:\\GIT"
-  ]
+  ],
+  "commit_command": "",
+  "ignore_prefixes": ["_old_"],
+  "min_modified_age": "1h"
 }

@@ -26,8 +26,9 @@ copy settings.example.json settings.json
 ## Format
 
 A JSON object with a required `folders` key (a non-empty list of root folder paths), an
-optional `commit_command` key used by `--commit-ask`, and an optional `ignore_prefixes` key
-that skips folders by name prefix during scanning.
+optional `commit_command` key used by `--commit-ask`, an optional `ignore_prefixes` key
+that skips folders by name prefix during scanning, and an optional `min_modified_age`
+key that holds `--commit-ask` back from freshly-touched repos.
 
 ```json
 {
@@ -36,7 +37,8 @@ that skips folders by name prefix during scanning.
     "C:\\Users\\me\\projects"
   ],
   "commit_command": "codex --yolo \"git commit and push\"",
-  "ignore_prefixes": ["_old_"]
+  "ignore_prefixes": ["_old_"],
+  "min_modified_age": "1h"
 }
 ```
 
@@ -81,6 +83,29 @@ that skips folders by name prefix during scanning.
 }
 ```
 
+### `min_modified_age`
+
+- Type: string duration. Optional; defaults to none (every dirty repo is prompted).
+- Accepted forms: a positive integer plus a unit -- `h` (hours), `d` (days), `w` (weeks),
+  `m` = 30 days. Examples: `"1h"`, `"4h"`, `"3d"`, `"2w"`. Note `m` means **months, not
+  minutes**, matching the mute timeframes.
+- When set, `--commit-ask` silently walks past any repo whose **newest** changed file was
+  modified less than this long ago -- someone is probably still working there, and a
+  commit-and-push would land mid-edit.
+- Affects `--commit-ask` only. The repo still appears in the normal report with its dirty
+  count, so nothing disappears from view.
+- A repo where no changed file has a readable modification time (e.g. only deletions) is
+  still prompted.
+- If present it must parse as a duration, or settings validation fails.
+
+```json
+{
+  "folders": ["D:\\GIT"],
+  "commit_command": "...",
+  "min_modified_age": "1h"
+}
+```
+
 ## Validation
 
 Settings are validated on load; the tool fails fast with a clear message when:
@@ -89,7 +114,8 @@ Settings are validated on load; the tool fails fast with a clear message when:
 - there is no `folders` key, or it is not a non-empty list,
 - a `folders` entry is not a string,
 - **none** of the listed folders exist,
-- `ignore_prefixes` is present but is not a list of non-empty strings.
+- `ignore_prefixes` is present but is not a list of non-empty strings,
+- `min_modified_age` is present but is not a parsable duration string (e.g. `"1h"`).
 
 A listed folder that does not exist is **skipped with a warning** (visible with `--debug`), as
 long as at least one folder is valid. This lets one shared settings file cover multiple machines

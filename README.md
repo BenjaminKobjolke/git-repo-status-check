@@ -22,11 +22,19 @@ Copy `settings.example.json` to `settings.json` and set your folders:
 {
   "folders": [
     "D:\\GIT"
-  ]
+  ],
+  "commit_command": "codex --yolo \"git commit and push\"",
+  "ignore_prefixes": ["_old_"],
+  "min_modified_age": "1h"
 }
 ```
 
-Each entry is a root folder. The scanner walks each root recursively, stops descending
+Only `folders` is required. `commit_command` powers `--commit-ask`, `ignore_prefixes` prunes
+folders by name prefix while scanning, and `min_modified_age` holds `--commit-ask` back from
+repos touched within that window (someone is probably still working there) — see
+[docs/SETTINGS.md](docs/SETTINGS.md).
+
+Each entry of `folders` is a root folder. The scanner walks each root recursively, stops descending
 once it finds a git repo, and (if a repo has a `.gitmodules`) also checks each submodule.
 
 ## Usage
@@ -44,11 +52,13 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--list-muted
 - `--settings PATH` — use a settings file other than `settings.json` in the project root
   (also overridable via the `GIT_REPO_STATUS_SETTINGS` environment variable).
 - `--limit N` — show at most `N` repos (newest changes first); summary still reports the true total.
-- `--commit-ask` — after the report, prompt `[c]ommit / [l]ist / [m]ute / [s]kip / [a]bort`
+- `--commit-ask` — after the report, prompt `[c]ommit / [m]ore / [s]kip / [a]bort`
   per dirty repo and run the `commit_command` from settings in that repo's directory on `c`.
-  `m` mutes the repo for a chosen timeframe (`1d`/`1w`/`1m` or custom like `3d`/`2w`); muted
-  repos are silently skipped until the mute expires. Requires a non-empty `commit_command`
-  (aborts before scanning if unset) and an interactive terminal.
+  `m` opens a submenu (age of files / list files / pull / mute). Muting takes a timeframe
+  (`1d`/`1w`/`1m` or custom like `4h`/`3d`/`2w`); muted repos are silently skipped until the
+  mute expires, as are repos changed more recently than the optional `min_modified_age`
+  setting allows. Requires a non-empty `commit_command` (aborts before scanning if unset)
+  and an interactive terminal.
 - `--list-muted` — list repos currently muted and the date each is muted until, then exit.
 - `--debug` — enable diagnostic logging.
 

@@ -27,35 +27,19 @@ from .mute_store import MuteStore
 from .scanner import _run_git, changed_file_ages
 
 
-def commit_interactive(
-    statuses: list[RepoStatus],
-    command: str,
-    store: MuteStore,
-    min_modified_age: float | None = None,
-) -> None:
-    """Walk ``statuses`` (already sorted/limited), prompting to run ``command`` per repo.
+def commit_interactive(statuses: list[RepoStatus], command: str, store: MuteStore) -> None:
+    """Walk ``statuses`` (already filtered/limited), prompting to run ``command`` per repo.
 
     ``c`` runs the command in the repo dir, ``s`` skips it, ``a`` stops the whole loop,
     and ``m`` opens a submenu (age of files / list files / mute). Muting waits for a
-    chosen timeframe and skips the repo. Currently-muted repos are skipped silently, as
-    are repos whose newest change is younger than ``min_modified_age`` seconds -- someone
-    is probably still working there. No-op when stdin is not a TTY (nothing to prompt).
+    chosen timeframe and skips the repo. Muted and too-recently-changed repos never reach
+    here -- the caller filters them out. No-op when stdin is not a TTY (nothing to prompt).
     """
     if not sys.stdin.isatty():
         print("--commit-ask needs an interactive terminal; nothing to do.")
         return
 
     for status in statuses:
-        now = time.time()
-        if store.is_muted(str(status.path), now):
-            continue
-        # latest_change is 0.0 when no changed file had a readable mtime -- not "1970".
-        if (
-            min_modified_age is not None
-            and status.latest_change > 0
-            and now - status.latest_change < min_modified_age
-        ):
-            continue
         print(f"\n{status.path}  -  {status.dirty_count} uncommitted")
         choice = _ask(status.path)
         if choice == "a":

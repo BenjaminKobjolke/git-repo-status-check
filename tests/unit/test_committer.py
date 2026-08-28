@@ -26,11 +26,6 @@ def _answers(monkeypatch: pytest.MonkeyPatch, *choices: str) -> None:
 
 
 @pytest.fixture
-def store(tmp_path: Path) -> MuteStore:
-    return MuteStore(tmp_path / "mutes.db")
-
-
-@pytest.fixture
 def mock_run(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Interactive TTY + a stubbed subprocess.run returning success."""
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
@@ -202,8 +197,7 @@ def test_mute_stores_timeframe_and_skips_commit(
     committer.commit_interactive(_statuses(1), "do-commit", store)
 
     mock_run.assert_not_called()  # muting does not commit
-    assert store.is_muted(str(Path("repo0")), now=1000.0) is True
-    assert store.is_muted(str(Path("repo0")), now=1000.0 + 604800.0) is False
+    assert store.muted_until(str(Path("repo0")), now=1000.0) == 1000.0 + 604800.0
 
 
 def test_mute_reprompts_on_invalid_timeframe(
@@ -212,58 +206,4 @@ def test_mute_reprompts_on_invalid_timeframe(
     monkeypatch.setattr(committer.time, "time", lambda: 0.0)
     _answers(monkeypatch, "m", "m", "nope", "1d")  # more -> mute -> bad, then good
     committer.commit_interactive(_statuses(1), "do-commit", store)
-    assert store.is_muted(str(Path("repo0")), now=0.0) is True
-
-
-def test_already_muted_repo_is_skipped_silently(
-    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
-) -> None:
-    monkeypatch.setattr(committer.time, "time", lambda: 0.0)
-    store.mute(str(Path("repo0")), muted_until=500.0)
-
-    def _fail(_: str) -> str:  # a muted repo must not be prompted
-        raise AssertionError("input() called for a muted repo")
-
-    monkeypatch.setattr("builtins.input", _fail)
-    committer.commit_interactive(_statuses(1), "do-commit", store)
-    mock_run.assert_not_called()
-
-
-def _fresh_status(latest_change: float) -> list[RepoStatus]:
-    return [RepoStatus(path=Path("repo0"), dirty_count=1, latest_change=latest_change)]
-
-
-def test_recently_changed_repo_is_skipped_silently(
-    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
-) -> None:
-    monkeypatch.setattr(committer.time, "time", lambda: 10_000.0)
-
-    def _fail(_: str) -> str:  # a too-fresh repo must not be prompted
-        raise AssertionError("input() called for a too-fresh repo")
-
-    monkeypatch.setattr("builtins.input", _fail)
-    committer.commit_interactive(
-        _fresh_status(10_000.0 - 60.0), "do-commit", store, min_modified_age=3600.0
-    )
-    mock_run.assert_not_called()
-
-
-def test_old_enough_repo_is_still_prompted(
-    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
-) -> None:
-    monkeypatch.setattr(committer.time, "time", lambda: 10_000.0)
-    _answers(monkeypatch, "c")
-    committer.commit_interactive(
-        _fresh_status(10_000.0 - 7200.0), "do-commit", store, min_modified_age=3600.0
-    )
-    mock_run.assert_called_once()
-
-
-def test_undated_repo_is_prompted_despite_threshold(
-    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
-) -> None:
-    # latest_change stays 0.0 when no changed file had a readable mtime -- not "1970".
-    monkeypatch.setattr(committer.time, "time", lambda: 10_000.0)
-    _answers(monkeypatch, "c")
-    committer.commit_interactive(_fresh_status(0.0), "do-commit", store, min_modified_age=3600.0)
-    mock_run.assert_called_once()
+    assert store.muted_until(str(Path("repo0")), now=0.0) == 86400.0

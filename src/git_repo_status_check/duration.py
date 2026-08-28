@@ -1,10 +1,14 @@
-"""Parse mute timeframes like ``1d`` / ``1w`` / ``1m`` / ``3d`` into seconds."""
+"""Convert mute timeframes like ``1d`` / ``1w`` / ``1m`` between text and seconds."""
 
 from __future__ import annotations
 
 import re
 
-from .constants import DURATION_UNIT_SECONDS
+from .constants import (
+    DURATION_BELOW_SMALLEST_UNIT,
+    DURATION_LABEL_SECONDS,
+    DURATION_UNIT_SECONDS,
+)
 
 # <positive int><unit>, unit case-insensitive; no decimals, no sign.
 _PATTERN = re.compile(r"^(\d+)([a-z])$", re.IGNORECASE)
@@ -24,3 +28,16 @@ def parse_duration(text: str) -> float | None:
     if count <= 0 or seconds is None:
         return None
     return float(count * seconds)
+
+
+def format_duration(seconds: float) -> str:
+    """Render ``seconds`` as a rounded-down single unit, e.g. ``"2 days"``, ``"1 hour"``.
+
+    Coarsest fitting unit wins; anything under a minute (a negative leftover included, so an
+    expiry that just passed never prints as "-1 minutes") collapses to one fixed phrase.
+    """
+    for label, size in DURATION_LABEL_SECONDS:
+        if seconds >= size:
+            count = int(seconds // size)
+            return f"{count} {label}" if count == 1 else f"{count} {label}s"
+    return DURATION_BELOW_SMALLEST_UNIT

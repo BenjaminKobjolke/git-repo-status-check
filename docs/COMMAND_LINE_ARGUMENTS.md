@@ -41,6 +41,15 @@ the `N` most recently changed repos.
 - The summary line still reports the true total and notes the truncation:
   `Summary: 61 dirty repo(s) (showing 10)`.
 - `N` larger than the number of dirty repos prints all of them with no `(showing …)` note.
+- With `--commit-ask`, `N` counts only repos that will actually be prompted for. Muted
+  repos and repos below `min_modified_age` are still listed (labelled, see below) but do
+  not use up a slot, so `--limit 10` always yields 10 repos to act on:
+
+  ```
+  D:\wamp64\www\naou  -  5487 uncommitted files  [muted for 2 days]
+  D:\GIT\sps-station-client  -  15 uncommitted files  [changed 12 minutes ago]
+  D:\GIT\some\repo  -  4 uncommitted files
+  ```
 
 ```bat
 uv run python main.py --limit 10
@@ -62,8 +71,8 @@ and prompt for each: `[c]ommit / [m]ore / [s]kip / [a]bort`.
     fast-forward before committing. A plain pull — if it can't proceed (e.g. local
     changes conflict) it fails loudly and nothing else is touched.
   - `m` — mute this repo, then pick a timeframe (`1d` / `1w` / `1m` or a custom value like
-    `4h` / `3d` / `2w`). The repo is silently skipped in future `--commit-ask` runs until the mute
-    expires (`1m` = 30 days).
+    `4h` / `3d` / `2w`). The repo is still listed but no longer prompted for in
+    future `--commit-ask` runs until the mute expires (`1m` = 30 days).
   - `b` — back to the top prompt.
 - `s` — skip this repo.
 - `a` — abort the loop; no further repos are touched.
@@ -75,9 +84,10 @@ Requires a non-empty `commit_command` in settings.json (see
 scanning**. Needs an interactive terminal — with piped/redirected stdin it prints a notice
 and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
 
-Repos whose newest changed file is younger than the optional `min_modified_age` setting are
-skipped silently too — they still appear in the report, they just are not prompted. See
-[SETTINGS.md](SETTINGS.md).
+Muted repos and repos whose newest changed file is younger than the optional
+`min_modified_age` setting are not prompted for. They still appear in the report with a
+`[muted for 2 days]` / `[changed 12 minutes ago]` label, and they do not count against
+`--limit`. See [SETTINGS.md](SETTINGS.md).
 
 Mutes are stored in a `mutes.db` SQLite file in the project root (gitignored, machine-local).
 

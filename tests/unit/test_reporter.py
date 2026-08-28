@@ -67,3 +67,41 @@ def test_progress_writes_to_stderr_when_tty(
     reporter.progress(Path("some/repo"))
     err = capsys.readouterr().err
     assert "Scanning:" in err and "some" in err
+
+
+def _skip_first_three(status: RepoStatus) -> str | None:
+    return "muted for 2 days" if status.path.name in ("repo0", "repo1", "repo2") else None
+
+
+def test_skipped_rows_print_labelled_but_do_not_consume_the_limit(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    statuses = _statuses(6)
+    shown = reporter.report(statuses, limit=2, skip_reason=_skip_first_three)
+
+    out = capsys.readouterr().out
+    assert out.count("muted for 2 days") == 3  # repo0..repo2 listed, labelled
+    assert "repo3" in out and "repo4" in out  # the two actionable rows
+    assert "repo5" not in out  # limit reached, walk stopped
+    assert shown == [statuses[3], statuses[4]]  # only actionable rows are returned
+    assert "Summary: 6 dirty repo(s) (showing 2)" in out
+
+
+def test_skip_reason_without_limit_shows_everything(capsys: pytest.CaptureFixture[str]) -> None:
+    statuses = _statuses(4)
+    shown = reporter.report(statuses, skip_reason=_skip_first_three)
+
+    out = capsys.readouterr().out
+    assert out.count("uncommitted") == 4
+    assert "(showing" not in out
+    assert shown == [statuses[3]]
+
+
+def test_summary_suffix_counts_repos_not_submodules(capsys: pytest.CaptureFixture[str]) -> None:
+    statuses = [
+        RepoStatus(path=Path("repo0"), dirty_count=1),
+        RepoStatus(path=Path("repo0/sub"), dirty_count=1, is_submodule=True),
+        RepoStatus(path=Path("repo1"), dirty_count=1),
+    ]
+    reporter.report(statuses, limit=1)
+    assert "Summary: 2 dirty repo(s) (showing 1)" in capsys.readouterr().out

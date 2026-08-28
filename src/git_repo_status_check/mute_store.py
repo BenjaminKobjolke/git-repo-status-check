@@ -48,11 +48,13 @@ class MuteStore:
             session.merge(Mute(repo_path=repo_path, muted_until=muted_until))
             session.commit()
 
-    def is_muted(self, repo_path: str, now: float) -> bool:
-        """True if ``repo_path`` has a mute that is still active at ``now``."""
+    def muted_until(self, repo_path: str, now: float) -> float | None:
+        """Expiry of ``repo_path``'s mute if it is still active at ``now``, else ``None``."""
         with Session(self._engine) as session:
             row = session.get(Mute, repo_path)
-            return row is not None and row.muted_until > now
+            if row is None or row.muted_until <= now:
+                return None
+            return row.muted_until
 
     def list_active(self, now: float) -> list[MuteRecord]:
         """Active mutes at ``now``, soonest expiry first."""

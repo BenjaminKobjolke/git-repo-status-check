@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+from collections.abc import Callable
 
 from .models import RepoStatus
 
@@ -25,19 +26,34 @@ def clear_progress() -> None:
     print(f"\r{'':<{width - 1}}\r", end="", file=sys.stderr, flush=True)
 
 
-def report(statuses: list[RepoStatus], limit: int | None = None) -> list[RepoStatus]:
+def report(
+    statuses: list[RepoStatus],
+    limit: int | None = None,
+    skip_reason: Callable[[RepoStatus], str | None] | None = None,
+) -> list[RepoStatus]:
     """Print dirty repos (already sorted newest-first), then a summary line.
 
-    ``limit`` caps the number of printed rows; the summary still reports the true total.
-    Returns the exact rows printed so callers (e.g. --commit-ask) reuse the same list.
+    ``skip_reason`` marks repos that will not be acted on (muted, too fresh); they are still
+    printed, labelled with the returned reason, but do not use up a ``limit`` slot -- otherwise
+    a screenful of muted repos would leave ``--commit-ask`` with nothing to prompt for.
+    Returns the actionable rows so callers (e.g. --commit-ask) reuse the same list.
     """
-    shown = statuses if limit is None else statuses[:limit]
-    for status in shown:
+    actionable: list[RepoStatus] = []
+    truncated = False
+    for status in statuses:
+        reason = skip_reason(status) if skip_reason is not None else None
+        if reason is None:
+            if limit is not None and len(actionable) >= limit:
+                truncated = True
+                break
+            actionable.append(status)
         prefix = "  submodule " if status.is_submodule else ""
         files = "file" if status.dirty_count == 1 else "files"
-        print(f"{prefix}{status.path}  -  {status.dirty_count} uncommitted {files}")
+        label = f"  [{reason}]" if reason is not None else ""
+        print(f"{prefix}{status.path}  -  {status.dirty_count} uncommitted {files}{label}")
 
     repos = sum(1 for s in statuses if not s.is_submodule)
-    suffix = f" (showing {len(shown)})" if limit is not None and len(shown) < len(statuses) else ""
+    shown_repos = sum(1 for s in actionable if not s.is_submodule)
+    suffix = f" (showing {shown_repos})" if truncated else ""
     print(f"\nSummary: {repos} dirty repo(s){suffix}")
-    return shown
+    return actionable

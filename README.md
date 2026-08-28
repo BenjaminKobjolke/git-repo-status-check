@@ -52,12 +52,15 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--list-muted
 - `--settings PATH` — use a settings file other than `settings.json` in the project root
   (also overridable via the `GIT_REPO_STATUS_SETTINGS` environment variable).
 - `--limit N` — show at most `N` repos (newest changes first); summary still reports the true total.
+  With `--commit-ask`, `N` counts only repos that are actually prompted for.
 - `--commit-ask` — after the report, prompt `[c]ommit / [m]ore / [s]kip / [a]bort`
   per dirty repo and run the `commit_command` from settings in that repo's directory on `c`.
   `m` opens a submenu (age of files / list files / pull / mute). Muting takes a timeframe
-  (`1d`/`1w`/`1m` or custom like `4h`/`3d`/`2w`); muted repos are silently skipped until the
-  mute expires, as are repos changed more recently than the optional `min_modified_age`
-  setting allows. Requires a non-empty `commit_command` (aborts before scanning if unset)
+  (`1d`/`1w`/`1m` or custom like `4h`/`3d`/`2w`). Muted repos are not prompted for until the
+  mute expires, nor are repos changed more recently than the optional `min_modified_age`
+  setting allows; both stay in the report with a `[muted for 2 days]` /
+  `[changed 12 minutes ago]` label and do not count against `--limit`.
+  Requires a non-empty `commit_command` (aborts before scanning if unset)
   and an interactive terminal.
 - `--list-muted` — list repos currently muted and the date each is muted until, then exit.
 - `--debug` — enable diagnostic logging.

@@ -33,6 +33,21 @@ MUTE_DB_FILE = "mutes.db"
 # Duration units → seconds. "m" is 30 days (calendar-month approximation), not minutes.
 DURATION_UNIT_SECONDS: dict[str, int] = {"h": 3600, "d": 86400, "w": 604800, "m": 2592000}
 
+# Human-readable duration labels, largest first. Sizes come from the parser's table so both
+# directions share one definition; "minute" has no parse unit ("m" is month) and lives here only.
+DURATION_LABEL_SECONDS: tuple[tuple[str, int], ...] = (
+    ("month", DURATION_UNIT_SECONDS["m"]),
+    ("week", DURATION_UNIT_SECONDS["w"]),
+    ("day", DURATION_UNIT_SECONDS["d"]),
+    ("hour", DURATION_UNIT_SECONDS["h"]),
+    ("minute", 60),
+)
+DURATION_BELOW_SMALLEST_UNIT = "less than a minute"
+
+# Labels for repos listed but not prompted in --commit-ask (see main.build_skip_reason).
+SKIP_LABEL_MUTED = "muted for {duration}"
+SKIP_LABEL_RECENT = "changed {duration} ago"
+
 # Interactive commit-loop prompts.
 COMMIT_PROMPT = "  [c]ommit / [m]ore / [s]kip / [a]bort? "
 COMMIT_PROMPT_HELP = "  Please enter c, m, s, or a."

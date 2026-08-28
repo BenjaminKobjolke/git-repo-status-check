@@ -89,11 +89,11 @@ key that holds `--commit-ask` back from freshly-touched repos.
 - Accepted forms: a positive integer plus a unit -- `h` (hours), `d` (days), `w` (weeks),
   `m` = 30 days. Examples: `"1h"`, `"4h"`, `"3d"`, `"2w"`. Note `m` means **months, not
   minutes**, matching the mute timeframes.
-- When set, `--commit-ask` silently walks past any repo whose **newest** changed file was
+- When set, `--commit-ask` does not prompt for any repo whose **newest** changed file was
   modified less than this long ago -- someone is probably still working there, and a
   commit-and-push would land mid-edit.
-- Affects `--commit-ask` only. The repo still appears in the normal report with its dirty
-  count, so nothing disappears from view.
+- Affects `--commit-ask` only. The repo still appears in the report, labelled
+  `[changed 12 minutes ago]`, and it does not count against `--limit`.
 - A repo where no changed file has a readable modification time (e.g. only deletions) is
   still prompted.
 - If present it must parse as a duration, or settings validation fails.

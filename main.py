@@ -68,7 +68,13 @@ def main(argv: list[str] | None = None) -> int:
     shown = report(statuses, limit=args.limit, skip_reason=skip_reason)
 
     if args.commit_ask and settings.commit_command:
-        commit_interactive(shown, settings.commit_command, store)
+        commit_interactive(
+            shown,
+            settings.commit_command,
+            store,
+            settings.file_explorer,
+            settings.rename_prefix,
+        )
     return 0
 
 

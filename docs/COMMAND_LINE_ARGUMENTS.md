@@ -21,8 +21,8 @@ uv run python main.py --settings C:\configs\my-git-roots.json
 ```
 
 The file is a JSON object with a required `folders` list of root paths to scan, plus the
-optional `commit_command`, `ignore_prefixes` and `min_modified_age` keys (see
-[SETTINGS.md](SETTINGS.md)):
+optional `commit_command`, `file_explorer`, `rename_prefix`, `ignore_prefixes` and
+`min_modified_age` keys (see [SETTINGS.md](SETTINGS.md)):
 
 ```json
 {
@@ -62,7 +62,7 @@ and prompt for each: `[c]ommit / [m]ore / [s]kip / [a]bort`.
 
 - `c` — run the configured `commit_command` in that repo's directory (output streams live).
 - `m` — open a submenu of secondary actions:
-  `[a]ge of files / [l]ist files / [p]ull / [m]ute / [b]ack`.
+  `[a]ge of files / [l]ist files / [p]ull / [e]xplorer / [r]ename / [m]ute / [b]ack`.
   - `a` — show the modification date of each changed file. When every changed file shares
     the same date, it collapses to one line (e.g. `All 5 files: 22.08.2026`); otherwise each
     file is listed with its date.
@@ -70,6 +70,11 @@ and prompt for each: `[c]ommit / [m]ore / [s]kip / [a]bort`.
   - `p` — run `git pull` in this repo (live output), then prompt again. Use it to
     fast-forward before committing. A plain pull — if it can't proceed (e.g. local
     changes conflict) it fails loudly and nothing else is touched.
+  - `e` — open this repo in the file manager configured as `file_explorer`, launched
+    detached so the prompt returns right away, then prompt again.
+  - `r` — rename this repo's folder to `<rename_prefix><name>` (e.g. `_old_project`), so
+    a matching `ignore_prefixes` entry keeps it out of the next scan. The repo is
+    consumed; a refused rename just prompts again.
   - `m` — mute this repo, then pick a timeframe (`1d` / `1w` / `1m` or a custom value like
     `4h` / `3d` / `2w`). The repo is still listed but no longer prompted for in
     future `--commit-ask` runs until the mute expires (`1m` = 30 days).
@@ -80,9 +85,11 @@ and prompt for each: `[c]ommit / [m]ore / [s]kip / [a]bort`.
 See [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) for the full menu reference.
 
 Requires a non-empty `commit_command` in settings.json (see
-[SETTINGS.md](SETTINGS.md)); without it the tool prints an error and exits 1 **before
-scanning**. Needs an interactive terminal — with piped/redirected stdin it prints a notice
-and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
+[SETTINGS.md](SETTINGS.md)); without one the tool prints an error and exits 1 **before
+scanning**. The submenu's `e` action additionally needs `file_explorer` and `r` needs
+`rename_prefix`, but both keys are optional — without them only those actions are
+unavailable. Needs an interactive terminal — with piped/redirected stdin it prints a
+notice and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
 
 Muted repos and repos whose newest changed file is younger than the optional
 `min_modified_age` setting are not prompted for. They still appear in the report with a

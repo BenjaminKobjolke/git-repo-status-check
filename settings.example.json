@@ -2,7 +2,11 @@
   "folders": [
     "D:\\GIT"
   ],
-  "commit_command": "",
-  "ignore_prefixes": ["_old_"],
+  "commit_command": "codex --yolo \"git commit and push\"",
+  "file_explorer": "explorer \"[[REPO_PATH]]\"",
+  "ignore_prefixes": [
+    "_old_"
+  ],
+  "rename_prefix": "_old_",
   "min_modified_age": "1h"
 }

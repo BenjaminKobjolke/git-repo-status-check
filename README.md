@@ -24,15 +24,19 @@ Copy `settings.example.json` to `settings.json` and set your folders:
     "D:\\GIT"
   ],
   "commit_command": "codex --yolo \"git commit and push\"",
+  "file_explorer": "explorer \"[[REPO_PATH]]\"",
   "ignore_prefixes": ["_old_"],
+  "rename_prefix": "_old_",
   "min_modified_age": "1h"
 }
 ```
 
-Only `folders` is required. `commit_command` powers `--commit-ask`, `ignore_prefixes` prunes
-folders by name prefix while scanning, and `min_modified_age` holds `--commit-ask` back from
-repos touched within that window (someone is probably still working there) — see
-[docs/SETTINGS.md](docs/SETTINGS.md).
+Only `folders` is required. `commit_command` powers `--commit-ask`, `file_explorer` is the
+file manager its `e` action opens a repo in (`[[REPO_PATH]]` is replaced with the repo path),
+`ignore_prefixes` prunes folders by name prefix while scanning, `rename_prefix` is the
+prefix its `r` action renames a repo folder with (archiving it out of the next scan), and
+`min_modified_age` holds `--commit-ask` back from repos touched within that window
+(someone is probably still working there) — see [docs/SETTINGS.md](docs/SETTINGS.md).
 
 Each entry of `folders` is a root folder. The scanner walks each root recursively, stops descending
 once it finds a git repo, and (if a repo has a `.gitmodules`) also checks each submodule.
@@ -55,10 +59,11 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--list-muted
   With `--commit-ask`, `N` counts only repos that are actually prompted for.
 - `--commit-ask` — after the report, prompt `[c]ommit / [m]ore / [s]kip / [a]bort`
   per dirty repo and run the `commit_command` from settings in that repo's directory on `c`.
-  `m` opens a submenu (age of files / list files / pull / mute). Muting takes a timeframe
-  (`1d`/`1w`/`1m` or custom like `4h`/`3d`/`2w`). Muted repos are not prompted for until the
-  mute expires, nor are repos changed more recently than the optional `min_modified_age`
-  setting allows; both stay in the report with a `[muted for 2 days]` /
+  `m` opens a submenu (age of files / list files / pull / explorer / rename / mute).
+  `rename` prefixes the repo folder with `rename_prefix` so it drops out of the next scan.
+  Muting takes a timeframe (`1d`/`1w`/`1m` or custom like `4h`/`3d`/`2w`). Muted repos are
+  not prompted for until the mute expires, nor are repos changed more recently than the optional
+  `min_modified_age` setting allows; both stay in the report with a `[muted for 2 days]` /
   `[changed 12 minutes ago]` label and do not count against `--limit`.
   Requires a non-empty `commit_command` (aborts before scanning if unset)
   and an interactive terminal.

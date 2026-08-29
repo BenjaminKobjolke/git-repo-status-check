@@ -19,6 +19,12 @@ KEY_FOLDERS = "folders"
 KEY_COMMIT_COMMAND = "commit_command"
 KEY_IGNORE_PREFIXES = "ignore_prefixes"
 KEY_MIN_MODIFIED_AGE = "min_modified_age"
+KEY_FILE_EXPLORER = "file_explorer"
+KEY_RENAME_PREFIX = "rename_prefix"
+
+# Placeholder substituted with the repo path in the file_explorer command. Named for the
+# value, not generically, so further variables can be added without renaming this one.
+REPO_PATH_TOKEN = "[[REPO_PATH]]"
 
 # Environment override for the settings file path.
 ENV_SETTINGS_PATH = "GIT_REPO_STATUS_SETTINGS"
@@ -51,10 +57,12 @@ SKIP_LABEL_RECENT = "changed {duration} ago"
 # Interactive commit-loop prompts.
 COMMIT_PROMPT = "  [c]ommit / [m]ore / [s]kip / [a]bort? "
 COMMIT_PROMPT_HELP = "  Please enter c, m, s, or a."
-MORE_PROMPT = "  [a]ge of files / [l]ist files / [p]ull / [m]ute / [b]ack? "
-MORE_PROMPT_HELP = "  Please enter a, l, p, m, or b."
+MORE_PROMPT = "  [a]ge of files / [l]ist files / [p]ull / [e]xplorer / [r]ename / [m]ute / [b]ack? "
+MORE_PROMPT_HELP = "  Please enter a, l, p, e, r, m, or b."
 MUTE_PROMPT = "  Mute for [1d] / [1w] / [1m] / custom (e.g. 4h, 3d, 2w)? "
 MUTE_PROMPT_HELP = "  Please enter a duration like 4h, 1d, 1w, 1m, 3d, or 2w."
+EXPLORER_NOT_CONFIGURED = f'  No "{KEY_FILE_EXPLORER}" configured in settings.'
+RENAME_PREFIX_NOT_CONFIGURED = f'  No "{KEY_RENAME_PREFIX}" configured in settings.'
 
 # Date format for the changed-file age display.
 AGE_DATE_FORMAT = "%d.%m.%Y"

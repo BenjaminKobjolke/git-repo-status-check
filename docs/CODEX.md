@@ -25,9 +25,11 @@ acts on the current repo.
 uv run python main.py --commit-ask
 ```
 
-For each dirty repo you get `[c]ommit / [s]kip / [a]bort`:
+For each dirty repo you get `[c]ommit / [m]ore / [s]kip / [a]bort`:
 
 - `c` — run the `commit_command` in that repo (Codex's output streams live to your terminal).
+- `m` — secondary actions (file ages, file list, pull, open in your file manager, mute);
+  see [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md).
 - `s` — skip this repo.
 - `a` — stop; no further repos are touched.
 

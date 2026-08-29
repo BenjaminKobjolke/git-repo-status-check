@@ -2,38 +2,17 @@
 
 from __future__ import annotations
 
-import subprocess
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from git_repo_status_check import committer
-from git_repo_status_check.constants import AGE_DATE_FORMAT
-from git_repo_status_check.models import ChangedFile, RepoStatus
+from git_repo_status_check.constants import EXPLORER_NOT_CONFIGURED, REPO_PATH_TOKEN
+from git_repo_status_check.models import ChangedFile
 from git_repo_status_check.mute_store import MuteStore
 
-
-def _statuses(n: int) -> list[RepoStatus]:
-    return [RepoStatus(path=Path(f"repo{i}"), dirty_count=1) for i in range(n)]
-
-
-def _answers(monkeypatch: pytest.MonkeyPatch, *choices: str) -> None:
-    """Feed the given menu choices to input() in order."""
-    it = iter(choices)
-    monkeypatch.setattr("builtins.input", lambda _: next(it))
-
-
-@pytest.fixture
-def mock_run(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Interactive TTY + a stubbed subprocess.run returning success."""
-    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-    result = MagicMock(spec=subprocess.CompletedProcess)
-    result.returncode = 0
-    run = MagicMock(return_value=result)
-    monkeypatch.setattr(committer.subprocess, "run", run)
-    return run
+from .helpers import _answers, _statuses
 
 
 def test_commit_runs_command_in_repo_dir(
@@ -117,7 +96,7 @@ def test_list_ages_groups_when_all_files_share_one_date(
 ) -> None:
     files = [ChangedFile(path="foo.py", mtime=1000.0), ChangedFile(path="bar.txt", mtime=2000.0)]
     monkeypatch.setattr(committer, "changed_file_ages", lambda p: files)
-    same_day = datetime.fromtimestamp(1000.0).strftime(AGE_DATE_FORMAT)
+    same_day = committer.format_age_date(1000.0)
     _answers(monkeypatch, "m", "a", "b", "s")  # more -> age -> back -> skip
     committer.commit_interactive(_statuses(1), "do-commit", store)
 
@@ -138,8 +117,8 @@ def test_list_ages_lists_per_file_on_multiple_dates(
     committer.commit_interactive(_statuses(1), "do-commit", store)
 
     out = capsys.readouterr().out
-    assert datetime.fromtimestamp(early).strftime(AGE_DATE_FORMAT) in out
-    assert datetime.fromtimestamp(late).strftime(AGE_DATE_FORMAT) in out
+    assert committer.format_age_date(early) in out
+    assert committer.format_age_date(late) in out
     assert "All " not in out  # not grouped
 
 
@@ -207,3 +186,41 @@ def test_mute_reprompts_on_invalid_timeframe(
     _answers(monkeypatch, "m", "m", "nope", "1d")  # more -> mute -> bad, then good
     committer.commit_interactive(_statuses(1), "do-commit", store)
     assert store.muted_until(str(Path("repo0")), now=0.0) == 86400.0
+
+
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [
+        (f'fman "{REPO_PATH_TOKEN}"', f'fman "{Path("repo0")}"'),  # token substituted
+        ("explorer", f'explorer "{Path("repo0")}"'),  # no token: path appended, quoted
+    ],
+)
+def test_explorer_builds_launch_command(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run: MagicMock,
+    mock_popen: MagicMock,
+    store: MuteStore,
+    configured: str,
+    expected: str,
+) -> None:
+    _answers(monkeypatch, "m", "e", "b", "c")  # more -> explorer -> back -> commit
+    committer.commit_interactive(_statuses(1), "do-commit", store, file_explorer=configured)
+
+    mock_popen.assert_called_once()
+    assert mock_popen.call_args.args[0] == expected
+    mock_run.assert_called_once()  # 'e' did not consume the repo
+
+
+def test_explorer_without_setting_reports_and_continues(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run: MagicMock,
+    mock_popen: MagicMock,
+    store: MuteStore,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _answers(monkeypatch, "m", "e", "b", "c")
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+
+    assert EXPLORER_NOT_CONFIGURED.strip() in capsys.readouterr().out
+    mock_popen.assert_not_called()
+    mock_run.assert_called_once()  # the loop carried on

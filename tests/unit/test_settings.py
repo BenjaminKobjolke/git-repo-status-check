@@ -7,8 +7,19 @@ from pathlib import Path
 
 import pytest
 
-from git_repo_status_check.constants import ENV_SETTINGS_PATH, EXAMPLE_SETTINGS_FILE
-from git_repo_status_check.settings import Settings, SettingsError, resolve_settings_path
+from git_repo_status_check.constants import (
+    ENV_SETTINGS_PATH,
+    EXAMPLE_SETTINGS_FILE,
+    KEY_COMMIT_COMMAND,
+    KEY_FILE_EXPLORER,
+    KEY_RENAME_PREFIX,
+)
+from git_repo_status_check.settings import (
+    _EXAMPLE_CONTENT,
+    Settings,
+    SettingsError,
+    resolve_settings_path,
+)
 
 
 def _write_settings(tmp_path: Path, **extra: object) -> Path:
@@ -64,19 +75,27 @@ def test_load_all_folders_missing_raises(tmp_path: Path) -> None:
         Settings.load(path)
 
 
-def test_load_reads_commit_command(tmp_path: Path) -> None:
-    path = _write_settings(tmp_path, commit_command="do-commit")
-    assert Settings.load(path).commit_command == "do-commit"
+# commit_command, file_explorer and rename_prefix share one optional-string contract,
+# so they share tests.
+OPTIONAL_COMMANDS = [KEY_COMMIT_COMMAND, KEY_FILE_EXPLORER, KEY_RENAME_PREFIX]
 
 
-def test_load_commit_command_absent_is_none(tmp_path: Path) -> None:
+@pytest.mark.parametrize("key", OPTIONAL_COMMANDS)
+def test_load_reads_optional_command(tmp_path: Path, key: str) -> None:
+    path = _write_settings(tmp_path, **{key: "do-something"})
+    assert getattr(Settings.load(path), key) == "do-something"
+
+
+@pytest.mark.parametrize("key", OPTIONAL_COMMANDS)
+def test_load_optional_command_absent_is_none(tmp_path: Path, key: str) -> None:
     path = _write_settings(tmp_path)
-    assert Settings.load(path).commit_command is None
+    assert getattr(Settings.load(path), key) is None
 
 
+@pytest.mark.parametrize("key", OPTIONAL_COMMANDS)
 @pytest.mark.parametrize("bad", ["", "   ", 42, ["x"]])
-def test_load_invalid_commit_command_raises(tmp_path: Path, bad: object) -> None:
-    path = _write_settings(tmp_path, commit_command=bad)
+def test_load_invalid_optional_command_raises(tmp_path: Path, key: str, bad: object) -> None:
+    path = _write_settings(tmp_path, **{key: bad})
     with pytest.raises(SettingsError):
         Settings.load(path)
 
@@ -129,3 +148,15 @@ def test_resolve_path_defaults_to_project_root(
 ) -> None:
     monkeypatch.delenv(ENV_SETTINGS_PATH, raising=False)
     assert resolve_settings_path(None, tmp_path) == tmp_path / "settings.json"
+
+
+def test_generated_example_settings_are_valid(tmp_path: Path) -> None:
+    """The shipped template must survive validation — a blank command key would raise."""
+    folder = tmp_path / "GIT"
+    folder.mkdir()
+    data = {**json.loads(_EXAMPLE_CONTENT), "folders": [str(folder)]}
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    settings = Settings.load(path)
+    assert settings.commit_command and settings.file_explorer

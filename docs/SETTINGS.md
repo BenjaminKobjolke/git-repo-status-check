@@ -26,9 +26,10 @@ copy settings.example.json settings.json
 ## Format
 
 A JSON object with a required `folders` key (a non-empty list of root folder paths), an
-optional `commit_command` key used by `--commit-ask`, an optional `ignore_prefixes` key
-that skips folders by name prefix during scanning, and an optional `min_modified_age`
-key that holds `--commit-ask` back from freshly-touched repos.
+optional `commit_command` key used by `--commit-ask`, an optional `file_explorer` key
+for its `e` menu action, an optional `rename_prefix` key for its `r` menu action, an
+optional `ignore_prefixes` key that skips folders by name prefix during scanning, and an
+optional `min_modified_age` key that holds `--commit-ask` back from freshly-touched repos.
 
 ```json
 {
@@ -37,6 +38,8 @@ key that holds `--commit-ask` back from freshly-touched repos.
     "C:\\Users\\me\\projects"
   ],
   "commit_command": "codex --yolo \"git commit and push\"",
+  "file_explorer": "explorer \"[[REPO_PATH]]\"",
+  "rename_prefix": "_old_",
   "ignore_prefixes": ["_old_"],
   "min_modified_age": "1h"
 }
@@ -57,12 +60,57 @@ key that holds `--commit-ask` back from freshly-touched repos.
   (see [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md)).
 - Run via the shell with the working directory set to the repo, so the command needs no repo
   path of its own. Output streams live to the console.
+- The `[[REPO_PATH]]` placeholder is `file_explorer`-only; it is **not** substituted here.
 - If present it must be a non-empty string, or settings validation fails.
 
 ```json
 {
   "folders": ["D:\\GIT"],
   "commit_command": "codex --yolo \"git commit and push using those guidelines D:\\GIT\\...\\commit-fast.md\""
+}
+```
+
+### `file_explorer`
+
+- Type: string. Optional; omit it if you don't use the `--commit-ask` `e` action.
+- The command run when you answer `e` in the `--commit-ask` **more** submenu (see
+  [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md)) to open the current repo in a file manager.
+- `[[REPO_PATH]]` in the string is replaced with the repo's path. **Quote it yourself** —
+  paths contain spaces: `"fman \"[[REPO_PATH]]\""`.
+- Without `[[REPO_PATH]]`, the quoted repo path is appended, so a bare `"explorer"` works.
+- Launched **detached** — the menu re-prompts immediately rather than waiting for the file
+  manager to close. Nothing is reported about how it exits.
+- If present it must be a non-empty string, or settings validation fails. If it is absent
+  and you press `e`, the tool says so and the loop carries on.
+
+```json
+{
+  "folders": ["D:\\GIT"],
+  "file_explorer": "fman \"[[REPO_PATH]]\""
+}
+```
+
+### `rename_prefix`
+
+- Type: string. Optional; omit it if you don't use the `--commit-ask` `r` action.
+- The prefix prepended to a repo's **folder name** when you answer `r` in the `--commit-ask`
+  **more** submenu (see [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md)):
+  `D:\GIT\project` becomes `D:\GIT\_old_project`.
+- Set it to one of your `ignore_prefixes` entries and the renamed folder is pruned from the
+  next scan — that is the point of the action: archive a repo you no longer want prompted for.
+- Only the folder is renamed; nothing inside the repo is touched, and the rename is undone by
+  renaming the folder back.
+- Refused (with a message, the menu re-prompts) when the name already starts with the prefix,
+  when the target name already exists, or when the OS rejects the rename (e.g. a file in the
+  repo is open). Nothing is overwritten.
+- If present it must be a non-empty string, or settings validation fails. If it is absent and
+  you press `r`, the tool says so and the loop carries on.
+
+```json
+{
+  "folders": ["D:\\GIT"],
+  "rename_prefix": "_old_",
+  "ignore_prefixes": ["_old_"]
 }
 ```
 
@@ -114,6 +162,8 @@ Settings are validated on load; the tool fails fast with a clear message when:
 - there is no `folders` key, or it is not a non-empty list,
 - a `folders` entry is not a string,
 - **none** of the listed folders exist,
+- `commit_command`, `file_explorer` or `rename_prefix` is present but is not a non-empty
+  string,
 - `ignore_prefixes` is present but is not a list of non-empty strings,
 - `min_modified_age` is present but is not a parsable duration string (e.g. `"1h"`).
 

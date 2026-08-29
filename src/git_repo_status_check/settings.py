@@ -12,17 +12,22 @@ from .constants import (
     ENV_SETTINGS_PATH,
     EXAMPLE_SETTINGS_FILE,
     KEY_COMMIT_COMMAND,
+    KEY_FILE_EXPLORER,
     KEY_FOLDERS,
     KEY_IGNORE_PREFIXES,
     KEY_MIN_MODIFIED_AGE,
+    KEY_RENAME_PREFIX,
+    REPO_PATH_TOKEN,
 )
 from .duration import parse_duration
 
 _EXAMPLE_CONTENT = json.dumps(
     {
         KEY_FOLDERS: ["D:\\GIT"],
-        KEY_COMMIT_COMMAND: "",
+        KEY_COMMIT_COMMAND: 'codex --yolo "git commit and push"',
+        KEY_FILE_EXPLORER: 'explorer "' + REPO_PATH_TOKEN + '"',
         KEY_IGNORE_PREFIXES: ["_old_"],
+        KEY_RENAME_PREFIX: "_old_",
         KEY_MIN_MODIFIED_AGE: "1h",
     },
     indent=2,
@@ -39,7 +44,9 @@ class Settings:
 
     folders: tuple[Path, ...]
     commit_command: str | None = None
+    file_explorer: str | None = None
     ignore_prefixes: tuple[str, ...] = ()
+    rename_prefix: str | None = None
     min_modified_age: float | None = None
 
     @classmethod
@@ -82,24 +89,32 @@ class Settings:
         if not folders:
             raise SettingsError(f"None of the configured folders in {path} exist.")
 
-        commit_command = cls._parse_commit_command(data, path)
+        commit_command = cls._parse_optional_string(data, path, KEY_COMMIT_COMMAND)
+        file_explorer = cls._parse_optional_string(data, path, KEY_FILE_EXPLORER)
+        rename_prefix = cls._parse_optional_string(data, path, KEY_RENAME_PREFIX)
         ignore_prefixes = cls._parse_ignore_prefixes(data, path)
         min_modified_age = cls._parse_min_modified_age(data, path)
         return cls(
             folders=tuple(folders),
             commit_command=commit_command,
+            file_explorer=file_explorer,
             ignore_prefixes=ignore_prefixes,
+            rename_prefix=rename_prefix,
             min_modified_age=min_modified_age,
         )
 
     @staticmethod
-    def _parse_commit_command(data: dict[str, object], path: Path) -> str | None:
-        """Optional ``commit_command`` — absent stays None; present must be a non-empty string."""
-        if KEY_COMMIT_COMMAND not in data:
+    def _parse_optional_string(data: dict[str, object], path: Path, key: str) -> str | None:
+        """Optional string under ``key`` — absent stays None; present must be non-empty.
+
+        Shared by ``commit_command``, ``file_explorer`` and ``rename_prefix``: same
+        contract, same error message.
+        """
+        if key not in data:
             return None
-        value = data[KEY_COMMIT_COMMAND]
+        value = data[key]
         if not isinstance(value, str) or not value.strip():
-            raise SettingsError(f'"{KEY_COMMIT_COMMAND}" in {path} must be a non-empty string.')
+            raise SettingsError(f'"{key}" in {path} must be a non-empty string.')
         return value
 
     @staticmethod

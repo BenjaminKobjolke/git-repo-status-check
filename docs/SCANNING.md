@@ -21,6 +21,9 @@ the directory tree looking for git repositories.
 - Folders whose name starts with any configured `ignore_prefixes` (see
   [SETTINGS.md](SETTINGS.md)) are also pruned from the walk. Matching is case-sensitive; a
   root listed in `folders` is never filtered this way, only subfolders found while walking.
+  The `--commit-ask` `r` action renames a repo folder with the configured `rename_prefix`
+  (see [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md)), which is how a repo is archived out of
+  this walk — point `rename_prefix` at one of the `ignore_prefixes`.
 
 So a layout like `D:\GIT\<org>\<repo>` is handled: the walk passes through `<org>` and reports
 each `<repo>`.

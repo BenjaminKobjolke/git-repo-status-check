@@ -3,6 +3,8 @@ coding-rules.json
 .claude/
 claude-plans/
 /PLAN_*.md
+PLAN.md
+HANDOFF.md
 .venv/
 __pycache__/
 *.pyc

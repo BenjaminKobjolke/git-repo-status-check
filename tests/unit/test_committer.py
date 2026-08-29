@@ -59,12 +59,17 @@ def test_list_files_reprompts_and_prints_changes(
     store: MuteStore,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(committer, "_run_git", lambda p, a: " M foo.py\n?? bar.txt\n")
+    # Same source as the dirty count, so the listing never shows files the count excluded.
+    listed = [
+        ChangedFile(path="foo.py", mtime=1000.0, code=" M"),
+        ChangedFile(path="bar.txt", mtime=None, code="??"),
+    ]
+    monkeypatch.setattr(committer, "changed_file_ages", lambda p: listed)
     _answers(monkeypatch, "m", "l", "b", "c")  # more -> list -> back -> commit
     committer.commit_interactive(_statuses(1), "do-commit", store)
 
     out = capsys.readouterr().out
-    assert "foo.py" in out and "bar.txt" in out
+    assert " M foo.py" in out and "?? bar.txt" in out
     mock_run.assert_called_once()  # 'l' did not consume the repo
 
 

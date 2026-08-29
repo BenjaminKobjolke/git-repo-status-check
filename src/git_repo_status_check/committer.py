@@ -27,7 +27,7 @@ from .constants import (
 from .duration import parse_duration
 from .models import RepoStatus
 from .mute_store import MuteStore
-from .scanner import _run_git, changed_file_ages
+from .scanner import changed_file_ages
 
 
 def commit_interactive(
@@ -147,14 +147,17 @@ def _ask_timeframe() -> float:
 
 
 def _list_files(path: Path) -> None:
-    """Print the repo's changed files (git status --short); note when there are none."""
-    output = _run_git(path, ("status", "--short"))
-    lines = [line for line in (output or "").splitlines() if line.strip()]
-    if not lines:
+    """Print the repo's changed files; note when there are none.
+
+    Reuses ``changed_file_ages`` rather than its own git call so the listing is exactly the
+    set that was counted — line-ending-only entries are absent from both.
+    """
+    files = changed_file_ages(path)
+    if not files:
         print("  (no changes)")
         return
-    for line in lines:
-        print(f"  {line}")
+    for changed in files:
+        print(f"  {changed.code} {changed.path}")
 
 
 def _run_pull(path: Path) -> None:

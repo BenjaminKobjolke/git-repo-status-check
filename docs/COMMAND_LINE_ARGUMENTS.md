@@ -66,7 +66,8 @@ and prompt for each: `[c]ommit / [m]ore / [s]kip / [a]bort`.
   - `a` — show the modification date of each changed file. When every changed file shares
     the same date, it collapses to one line (e.g. `All 5 files: 22.08.2026`); otherwise each
     file is listed with its date.
-  - `l` — list the changed files in this repo (`git status --short`), then prompt again.
+  - `l` — list the changed files in this repo — the same set that was counted, so
+    line-ending-only changes are absent — then prompt again.
   - `p` — run `git pull` in this repo (live output), then prompt again. Use it to
     fast-forward before committing. A plain pull — if it can't proceed (e.g. local
     changes conflict) it fails loudly and nothing else is touched.
@@ -123,6 +124,13 @@ Without it, only warnings and errors are logged. Does not affect the report outp
 
 ```bat
 uv run python main.py --debug
+```
+
+This is also how you see which entries were dropped as line-ending noise
+(see [SCANNING.md](SCANNING.md)):
+
+```
+DEBUG git_repo_status_check: D:\GIT\some\repo: ignored 48 line-ending-only change(s)
 ```
 
 ## `--help`

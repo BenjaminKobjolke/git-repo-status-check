@@ -9,9 +9,13 @@ from pathlib import Path
 
 from .app_logger import AppLogger
 from .constants import (
+    DEBUG_LINE_ENDING_FILTERED,
+    GIT_DIFF_STAGED_IGNORING_CR,
+    GIT_DIFF_WORKTREE_IGNORING_CR,
     GIT_DIR,
     GIT_STATUS_PORCELAIN,
     GITMODULES_FILE,
+    MODIFIED_ONLY_CODES,
     NOISE_DIRS,
 )
 from .models import ChangedFile, RepoStatus
@@ -67,12 +71,34 @@ def _porcelain_path(line: str) -> str:
     return path.strip().strip('"')
 
 
+def _paths_differing_ignoring_cr(repo: Path) -> set[str] | None:
+    """Tracked paths that still differ once a CR at end-of-line is ignored (worktree + index).
+
+    None means git failed. The caller must then keep every entry — an unanswered diff read as
+    an empty set would hide real changes behind the line-ending filter.
+    """
+    paths: set[str] = set()
+    for args in (GIT_DIFF_WORKTREE_IGNORING_CR, GIT_DIFF_STAGED_IGNORING_CR):
+        out = _run_git(repo, args)
+        if out is None:
+            return None
+        paths.update(line.strip() for line in out.splitlines() if line.strip())
+    return paths
+
+
 def changed_file_ages(repo: Path) -> list[ChangedFile]:
-    """Return each uncommitted file with its mtime (None if deleted/inaccessible)."""
+    """Return each uncommitted file with its mtime (None if deleted/inaccessible).
+
+    Modified files whose only difference is a CR at end-of-line are dropped. With
+    ``core.autocrlf`` off, an LF blob checked out as CRLF reads as modified although nobody
+    edited it, which otherwise flags whole repos as dirty. This is the single place the
+    filter lives — every caller (dirty counts, the commit menu) consumes the filtered list.
+    """
     out = _run_git(repo, GIT_STATUS_PORCELAIN)
     if out is None:
         return []
     files: list[ChangedFile] = []
+    candidates: set[str] = set()
     for line in out.splitlines():
         if not line.strip():
             continue
@@ -81,8 +107,22 @@ def changed_file_ages(repo: Path) -> list[ChangedFile]:
             mtime: float | None = (repo / rel).stat().st_mtime
         except OSError:
             mtime = None
-        files.append(ChangedFile(path=rel, mtime=mtime))
-    return files
+        files.append(ChangedFile(path=rel, mtime=mtime, code=line[:2]))
+        # git quotes non-ASCII paths here but escapes them differently in `diff --name-only`,
+        # so a quoted path cannot be matched against the diff — never filter it.
+        if line[:2] in MODIFIED_ONLY_CODES and not line[3:].startswith('"'):
+            candidates.add(rel)
+
+    if not candidates:
+        return files
+    real = _paths_differing_ignoring_cr(repo)
+    if real is None:  # _run_git already warned; keep everything rather than hide changes.
+        return files
+    noise = candidates - real
+    if not noise:
+        return files
+    AppLogger.debug(DEBUG_LINE_ENDING_FILTERED.format(repo=repo, count=len(noise)))
+    return [f for f in files if f.path not in noise]
 
 
 def dirty_info(repo: Path) -> tuple[int, float]:

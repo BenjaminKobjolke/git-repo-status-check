@@ -22,3 +22,4 @@ class ChangedFile:
 
     path: str
     mtime: float | None
+    code: str = ""  # the two-character porcelain status (" M", "??", ...)

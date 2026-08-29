@@ -85,7 +85,26 @@ Summary: 1 dirty repo(s)
 ```
 
 "Uncommitted" counts every `git status --porcelain` entry: modified, staged, and
-untracked files.
+untracked files — except changes that are only a CR at end of line, which are dropped as
+CRLF/LF noise (see [docs/SCANNING.md](docs/SCANNING.md)).
+
+## Troubleshooting
+
+**A repo is reported dirty but `git diff` shows nothing meaningful.** Almost always CRLF/LF
+noise: the file was committed with LF endings and an editor rewrote it with CRLF, so git calls it
+modified. Those entries are filtered out of the count — run with `--debug` to see how many were
+ignored per repo:
+
+```
+DEBUG git_repo_status_check: D:\GIT\some\repo: ignored 48 line-ending-only change(s)
+```
+
+If a repo still looks wrong, check it by hand — `git -C <repo> diff --name-only --ignore-cr-at-eol`
+lists only the genuinely edited files. See [docs/SCANNING.md](docs/SCANNING.md) for the exact rule.
+
+**A repo is missing from the report.** Check `ignore_prefixes` in your settings, and that the repo
+is not nested inside another repo (the walk stops at the first `.git` it finds) or under a pruned
+folder like `node_modules`.
 
 ## Tests
 

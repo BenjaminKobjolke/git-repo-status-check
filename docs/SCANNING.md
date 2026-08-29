@@ -42,6 +42,33 @@ Ignored files (per `.gitignore`) are **not** counted — porcelain does not list
 A clean repo (no porcelain output) is not printed; it only contributes to the total scanned
 but not to the dirty summary.
 
+### Line-ending-only changes are excluded
+
+A modified tracked file whose **only** difference is a CR at end of line does not count.
+
+Why: with `core.autocrlf` off, a file committed with LF endings but sitting in the worktree with
+CRLF endings is "modified" as far as git is concerned, even though nobody edited it. On Windows
+this silently marks whole repos dirty — one repo in a real scan showed 130 such files and zero
+actual edits.
+
+How: after the porcelain listing, entries with a modification code (` M`, `M `, `MM`) are checked
+against `git diff --name-only --ignore-cr-at-eol` (worktree and staged). A path that no longer
+appears there is line-ending noise and is dropped. Nothing is written — no repo's `core.autocrlf`
+or `.gitattributes` is touched — so the rule works the same in either direction (LF worktree over
+CRLF blobs too).
+
+The filter is deliberately narrow and fails safe:
+
+- Untracked (`??`), added, deleted and renamed entries are never filtered.
+- Quote-escaped paths (non-ASCII names) are never filtered — porcelain and `diff --name-only`
+  escape them differently, so they cannot be matched reliably.
+- If either diff command fails, nothing is filtered.
+- A repo left with zero real changes drops out of the report entirely. Run with `--debug` to see
+  a line naming how many entries were ignored per repo.
+
+Because the count and the `--commit-ask` `[l]ist files` view come from the same filtered list,
+the two always agree.
+
 ## Submodules
 
 If a repo contains a `.gitmodules` file, its submodules are checked **individually**:

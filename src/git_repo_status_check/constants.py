@@ -9,6 +9,23 @@ GITMODULES_FILE = ".gitmodules"
 # Git subcommands (passed after `git -C <repo>`).
 GIT_STATUS_PORCELAIN: tuple[str, ...] = ("status", "--porcelain")
 
+# Files that still differ once a CR at end-of-line is ignored — i.e. the genuinely edited ones.
+# With core.autocrlf off, an LF blob checked out as CRLF is "modified" to git although nobody
+# touched it; comparing porcelain against these two lists strips that noise out of the count.
+GIT_DIFF_WORKTREE_IGNORING_CR: tuple[str, ...] = ("diff", "--name-only", "--ignore-cr-at-eol")
+GIT_DIFF_STAGED_IGNORING_CR: tuple[str, ...] = (
+    "diff",
+    "--cached",
+    "--name-only",
+    "--ignore-cr-at-eol",
+)
+
+# Porcelain XY codes that can be pure line-ending noise. Every other code (untracked, added,
+# deleted, renamed) is a real change and is never filtered.
+MODIFIED_ONLY_CODES: frozenset[str] = frozenset({" M", "M ", "MM"})
+
+DEBUG_LINE_ENDING_FILTERED = "{repo}: ignored {count} line-ending-only change(s)"
+
 # Dirs we never descend into while looking for repos (speed + noise).
 NOISE_DIRS: frozenset[str] = frozenset(
     {"node_modules", ".venv", "venv", "__pycache__", ".mypy_cache", ".ruff_cache"}

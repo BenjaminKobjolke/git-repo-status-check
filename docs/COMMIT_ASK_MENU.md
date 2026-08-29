@@ -35,7 +35,7 @@ the optional `min_modified_age` setting allows. Both are still listed in the rep
 | Key | Action |
 |-----|--------|
 | `a` | Show the modification date of each changed file. When every changed file shares the same date, it collapses to one line (e.g. `All 5 files: 22.08.2026`); otherwise each file is listed with its date. Re-prompts. |
-| `l` | List the changed files in this repo (`git status --short`). Re-prompts. |
+| `l` | List the changed files in this repo — the same set that was counted (see [SCANNING.md](SCANNING.md)). Re-prompts. |
 | `p` | Run `git pull` in this repo (live output). Use it to fast-forward before committing. A plain pull — if it can't proceed (e.g. local changes conflict) it fails loudly and nothing else is touched. Re-prompts. |
 | `e` | Open this repo in the configured file manager (`file_explorer` in settings). Launched detached, so the prompt comes straight back — the file manager stays open as long as you want it. Without `file_explorer` set it just says so and changes nothing. Re-prompts. |
 | `r` | Rename this repo's folder to `<rename_prefix><name>` (e.g. `project` -> `_old_project`). Point `rename_prefix` at one of your `ignore_prefixes` and the folder drops out of the next scan. Refuses (and re-prompts) when `rename_prefix` is unset, the name already starts with it, the target exists, or the rename fails. On success the repo is consumed — the loop moves to the next one. |

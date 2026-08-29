@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from git_repo_status_check.scanner import scan_all, scan_repo
+from git_repo_status_check.scanner import changed_file_ages, scan_all, scan_repo
 from git_repo_status_check.settings import Settings
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
@@ -76,6 +76,34 @@ def test_scan_all_sorts_newest_change_first(tmp_path: Path) -> None:
 
     results = scan_all(Settings(folders=(tmp_path,)))
     assert [s.path for s in results] == [newer, older]
+
+
+def _init_lf_repo(path: Path) -> Path:
+    """A repo holding two LF-committed files, with autocrlf off so git sees worktree bytes."""
+    repo = _init_repo(path)
+    _git(repo, "config", "core.autocrlf", "false")
+    (repo / "endings.txt").write_bytes(b"one\ntwo\n")
+    (repo / "content.txt").write_bytes(b"one\ntwo\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "lf files")
+    return repo
+
+
+def test_line_ending_only_repo_not_reported(tmp_path: Path) -> None:
+    repo = _init_lf_repo(tmp_path / "crlf")
+    (repo / "endings.txt").write_bytes(b"one\r\ntwo\r\n")  # same content, CRLF instead of LF
+    assert scan_all(Settings(folders=(tmp_path,))) == []
+
+
+def test_real_edit_survives_the_line_ending_filter(tmp_path: Path) -> None:
+    repo = _init_lf_repo(tmp_path / "mixed")
+    (repo / "endings.txt").write_bytes(b"one\r\ntwo\r\n")  # noise
+    (repo / "content.txt").write_bytes(b"one\nedited\n")  # genuine edit
+
+    results = scan_all(Settings(folders=(tmp_path,)))
+    assert len(results) == 1
+    assert results[0].dirty_count == 1
+    assert [f.path for f in changed_file_ages(repo)] == ["content.txt"]
 
 
 def test_submodule_reported_separately(tmp_path: Path) -> None:

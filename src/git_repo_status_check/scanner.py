@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 from .app_logger import AppLogger
@@ -13,10 +13,14 @@ from .constants import (
     GIT_DIFF_STAGED_IGNORING_CR,
     GIT_DIFF_WORKTREE_IGNORING_CR,
     GIT_DIR,
+    GIT_OUTPUT_ENCODING,
+    GIT_OUTPUT_ERRORS,
     GIT_STATUS_PORCELAIN,
     GITMODULES_FILE,
     MODIFIED_ONLY_CODES,
     NOISE_DIRS,
+    NUL,
+    RENAME_COPY_CODES,
 )
 from .models import ChangedFile, RepoStatus
 from .settings import Settings
@@ -39,13 +43,19 @@ def find_repos(root: Path, ignore_prefixes: tuple[str, ...] = ()) -> Iterator[Pa
         ]
 
 
-def _run_git(repo: Path, args: tuple[str, ...]) -> str | None:
-    """Run ``git -C <repo> <args>``; return stdout, or None if git failed."""
+def run_git(repo: Path, args: tuple[str, ...]) -> str | None:
+    """Run ``git -C <repo> <args>``; return stdout, or None if git failed.
+
+    Output is decoded as UTF-8 (git's own path encoding) rather than by the process
+    locale, which raises on ordinary non-ASCII names under ``-z``.
+    """
     try:
         result = subprocess.run(
             ("git", "-C", str(repo), *args),
             capture_output=True,
             text=True,
+            encoding=GIT_OUTPUT_ENCODING,
+            errors=GIT_OUTPUT_ERRORS,
             check=False,
         )
     except FileNotFoundError:
@@ -63,12 +73,30 @@ def _run_git(repo: Path, args: tuple[str, ...]) -> str | None:
     return result.stdout
 
 
-def _porcelain_path(line: str) -> str:
-    """Extract the file path from a porcelain line (cols 3+), resolving rename arrows."""
-    path = line[3:]
-    if " -> " in path:  # rename/copy: "old -> new" — the new path is what exists on disk
-        path = path.split(" -> ", 1)[1]
-    return path.strip().strip('"')
+def _nul_fields(text: str) -> list[str]:
+    """Split a ``-z`` listing into its fields; the empty tail after the last NUL is dropped."""
+    return [field for field in text.split(NUL) if field]
+
+
+def _porcelain_records(out: str) -> Iterator[tuple[str, str]]:
+    """Yield ``(XY code, path)`` per ``git status --porcelain -z`` record.
+
+    A record is ``XY<space><path>NUL``. Rename/copy records carry the SOURCE path as a
+    separate trailing field (``-z`` drops the ``->`` and puts the destination first); it
+    belongs to the record before it and is consumed here, never yielded as its own entry.
+    Paths arrive verbatim — no quoting, so spaces and non-ASCII need no unescaping.
+    """
+    fields = _nul_fields(out)
+    index = 0
+    while index < len(fields):
+        record = fields[index]
+        index += 1
+        if len(record) < 4:  # "XY " plus at least one path character
+            continue
+        code = record[:2]
+        if code[0] in RENAME_COPY_CODES or code[1] in RENAME_COPY_CODES:
+            index += 1  # skip the source path trailing this record
+        yield code, record[3:]
 
 
 def _paths_differing_ignoring_cr(repo: Path) -> set[str] | None:
@@ -79,11 +107,46 @@ def _paths_differing_ignoring_cr(repo: Path) -> set[str] | None:
     """
     paths: set[str] = set()
     for args in (GIT_DIFF_WORKTREE_IGNORING_CR, GIT_DIFF_STAGED_IGNORING_CR):
-        out = _run_git(repo, args)
+        out = run_git(repo, args)
         if out is None:
             return None
-        paths.update(line.strip() for line in out.splitlines() if line.strip())
+        paths.update(_nul_fields(out))
     return paths
+
+
+def line_ending_only_paths(
+    repo: Path, records: Sequence[tuple[str, str]] | None = None
+) -> set[str]:
+    """Modified paths whose only difference from the index is a CR at end of line.
+
+    Empty when there is nothing to filter *and* whenever git fails: an unanswered diff must
+    never read as "everything was noise". ``records`` lets a caller that already ran
+    ``git status`` pass its parsed output instead of paying for a second run.
+    """
+    if records is None:
+        out = run_git(repo, GIT_STATUS_PORCELAIN)
+        if out is None:
+            return set()
+        records = list(_porcelain_records(out))
+    candidates = {path for code, path in records if code in MODIFIED_ONLY_CODES}
+    if not candidates:
+        return set()
+    real = _paths_differing_ignoring_cr(repo)
+    if real is None:  # run_git already warned; keep everything rather than hide changes.
+        return set()
+    return candidates - real
+
+
+def changed_paths(repo: Path) -> set[str]:
+    """Every path ``git status`` reports for ``repo``, unfiltered — line-ending noise included.
+
+    The repair in ``line_endings`` needs the raw truth to verify itself; everything else
+    wants ``changed_file_ages``.
+    """
+    out = run_git(repo, GIT_STATUS_PORCELAIN)
+    if out is None:
+        return set()
+    return {path for _, path in _porcelain_records(out)}
 
 
 def changed_file_ages(repo: Path) -> list[ChangedFile]:
@@ -92,33 +155,22 @@ def changed_file_ages(repo: Path) -> list[ChangedFile]:
     Modified files whose only difference is a CR at end-of-line are dropped. With
     ``core.autocrlf`` off, an LF blob checked out as CRLF reads as modified although nobody
     edited it, which otherwise flags whole repos as dirty. This is the single place the
-    filter lives — every caller (dirty counts, the commit menu) consumes the filtered list.
+    filter is applied — every caller (dirty counts, the commit menu) consumes the filtered
+    list.
     """
-    out = _run_git(repo, GIT_STATUS_PORCELAIN)
+    out = run_git(repo, GIT_STATUS_PORCELAIN)
     if out is None:
         return []
+    records = list(_porcelain_records(out))
     files: list[ChangedFile] = []
-    candidates: set[str] = set()
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        rel = _porcelain_path(line)
+    for code, rel in records:
         try:
             mtime: float | None = (repo / rel).stat().st_mtime
         except OSError:
             mtime = None
-        files.append(ChangedFile(path=rel, mtime=mtime, code=line[:2]))
-        # git quotes non-ASCII paths here but escapes them differently in `diff --name-only`,
-        # so a quoted path cannot be matched against the diff — never filter it.
-        if line[:2] in MODIFIED_ONLY_CODES and not line[3:].startswith('"'):
-            candidates.add(rel)
+        files.append(ChangedFile(path=rel, mtime=mtime, code=code))
 
-    if not candidates:
-        return files
-    real = _paths_differing_ignoring_cr(repo)
-    if real is None:  # _run_git already warned; keep everything rather than hide changes.
-        return files
-    noise = candidates - real
+    noise = line_ending_only_paths(repo, records)
     if not noise:
         return files
     AppLogger.debug(DEBUG_LINE_ENDING_FILTERED.format(repo=repo, count=len(noise)))
@@ -128,7 +180,7 @@ def changed_file_ages(repo: Path) -> list[ChangedFile]:
 def dirty_info(repo: Path) -> tuple[int, float]:
     """Return (uncommitted file count, newest changed-file mtime) for ``repo``.
 
-    Counts every ``git status --porcelain`` line; mtime is the max over the changed files
+    Counts every ``git status --porcelain`` record; mtime is the max over the changed files
     that still exist on disk (deleted files are skipped). Empty repo → (0, 0.0).
     """
     files = changed_file_ages(repo)

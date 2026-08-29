@@ -60,11 +60,13 @@ CRLF blobs too).
 The filter is deliberately narrow and fails safe:
 
 - Untracked (`??`), added, deleted and renamed entries are never filtered.
-- Quote-escaped paths (non-ASCII names) are never filtered — porcelain and `diff --name-only`
-  escape them differently, so they cannot be matched reliably.
+- Every listing is read with `-z`, so both sides name a file identically: raw, unquoted,
+  NUL-terminated. The line-based formats quote spaces and non-ASCII differently on each side,
+  which used to leave those paths unmatchable and therefore unfiltered.
 - If either diff command fails, nothing is filtered.
 - A repo left with zero real changes drops out of the report entirely. Run with `--debug` to see
-  a line naming how many entries were ignored per repo.
+  a line naming how many entries were ignored per repo, or `--fix-line-endings` to repair
+  those repos (see [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md)).
 
 Because the count and the `--commit-ask` `[l]ist files` view come from the same filtered list,
 the two always agree.

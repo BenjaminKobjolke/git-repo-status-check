@@ -13,6 +13,7 @@ from git_repo_status_check.app_logger import AppLogger
 from git_repo_status_check.committer import commit_interactive
 from git_repo_status_check.constants import MUTE_DB_FILE, SKIP_LABEL_MUTED, SKIP_LABEL_RECENT
 from git_repo_status_check.duration import format_duration
+from git_repo_status_check.line_endings import fix_interactive
 from git_repo_status_check.models import RepoStatus
 from git_repo_status_check.mute_store import MuteStore
 from git_repo_status_check.reporter import clear_progress, progress, report
@@ -31,6 +32,11 @@ def main(argv: list[str] | None = None) -> int:
         "--commit-ask",
         action="store_true",
         help="Prompt c/l/m/s/a per dirty repo and run the settings commit_command on commit.",
+    )
+    parser.add_argument(
+        "--fix-line-endings",
+        action="store_true",
+        help="Offer to set core.autocrlf per repo whose only changes are line-ending noise.",
     )
     parser.add_argument(
         "--list-muted",
@@ -52,6 +58,12 @@ def main(argv: list[str] | None = None) -> int:
     except SettingsError as exc:
         print(exc, file=sys.stderr)
         return 1
+
+    # Repos with nothing but line-ending noise are filtered out of the report entirely,
+    # so the repair mode does its own walk instead of running the normal scan first.
+    if args.fix_line_endings:
+        fix_interactive(settings)
+        return 0
 
     # Fail before scanning (which can be slow) if --commit-ask can't be honored.
     if args.commit_ask and not settings.commit_command:

@@ -3,7 +3,8 @@
 `main.py` (or `start.bat`) accepts the following arguments. All are optional.
 
 ```
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--list-muted] [--debug]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--fix-line-endings]
+                      [--list-muted] [--debug]
 ```
 
 ## `--settings PATH`
@@ -101,6 +102,33 @@ Mutes are stored in a `mutes.db` SQLite file in the project root (gitignored, ma
 
 ```bat
 uv run python main.py --commit-ask
+```
+
+## `--fix-line-endings`
+
+Walk the configured folders and offer to repair every repo whose *only* uncommitted changes
+are line-ending noise. Such repos never appear in the normal report (the filter empties
+them), so this mode does its own walk. Needs an interactive terminal.
+
+Per repo it prints the path and the number of phantom changes, then asks
+`[y]es fix / [n]o skip / [a]bort`. Answering `y` sets the repo's **local** `core.autocrlf` to
+whichever value makes git agree with the index again, and refreshes the index's stale stat
+data with `git add` on exactly those paths. Nothing is committed, no file on disk is
+rewritten, and no `.gitattributes` is touched.
+
+Which value is right depends on the repo, so both are tried and verified against real git
+output. `git add` only ever runs once the diff confirms there is no content left to stage. If
+no value works — a `.gitattributes` `text` rule outranks `core.autocrlf`, for instance — the
+previous local setting is restored and the repo is reported as not auto-fixable.
+
+```bat
+uv run python main.py --fix-line-endings
+```
+
+```
+D:\GIT\some\repo  -  12 line-ending-only change(s)
+  [y]es fix / [n]o skip / [a]bort? y
+  OK: core.autocrlf=true — 12 phantom change(s) gone.
 ```
 
 ## `--list-muted`

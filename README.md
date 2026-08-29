@@ -50,7 +50,8 @@ start.bat
 or directly:
 
 ```bat
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--list-muted] [--debug]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--fix-line-endings]
+                      [--list-muted] [--debug]
 ```
 
 - `--settings PATH` — use a settings file other than `settings.json` in the project root
@@ -67,6 +68,8 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--list-muted
   `[changed 12 minutes ago]` label and do not count against `--limit`.
   Requires a non-empty `commit_command` (aborts before scanning if unset)
   and an interactive terminal.
+- `--fix-line-endings` — offer to repair each repo whose only changes are line-ending
+  noise, by setting its local `core.autocrlf`. Nothing is committed or rewritten on disk.
 - `--list-muted` — list repos currently muted and the date each is muted until, then exit.
 - `--debug` — enable diagnostic logging.
 
@@ -98,6 +101,10 @@ ignored per repo:
 ```
 DEBUG git_repo_status_check: D:\GIT\some\repo: ignored 48 line-ending-only change(s)
 ```
+
+To stop git itself from reporting them, run `--fix-line-endings`: it offers to set each such
+repo's local `core.autocrlf` to a value that makes git agree with the index again, without
+committing or rewriting anything.
 
 If a repo still looks wrong, check it by hand — `git -C <repo> diff --name-only --ignore-cr-at-eol`
 lists only the genuinely edited files. See [docs/SCANNING.md](docs/SCANNING.md) for the exact rule.

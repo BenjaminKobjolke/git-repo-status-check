@@ -163,7 +163,7 @@ def _list_files(path: Path) -> None:
 def _run_pull(path: Path) -> None:
     """Run ``git pull`` in the repo dir with live output; report the result.
 
-    Streams like ``_run_commit`` (not captured like ``scanner._run_git``) so the
+    Streams like ``_run_commit`` (not captured like ``scanner.run_git``) so the
     user sees fetch/merge progress. Plain pull — failures surface as-is.
     """
     result = subprocess.run(("git", "-C", str(path), "pull"), check=False)

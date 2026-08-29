@@ -24,6 +24,25 @@ def _fake_completed(
     return proc
 
 
+def _porcelain_z(porcelain: str) -> str:
+    """Turn readable ``-s``-style lines into the NUL stream ``--porcelain -z`` really emits.
+
+    Tests stay legible as lines; git's own format (no quoting, rename source as its own
+    field) is produced here so the parser under test sees exactly what git sends.
+    """
+    records: list[str] = []
+    for line in porcelain.splitlines():
+        if not line.strip():
+            continue
+        code, path = line[:2], line[3:]
+        if " -> " in path:
+            new, old = path.split(" -> ", 1)
+            records.append(f"{code} {new}\0{old}\0")
+        else:
+            records.append(f"{code} {path}\0")
+    return "".join(records)
+
+
 def _stub_git(
     monkeypatch: pytest.MonkeyPatch,
     porcelain: str,
@@ -35,16 +54,18 @@ def _stub_git(
 ) -> None:
     """Answer ``git status --porcelain`` with ``porcelain``, the ignore-CR diffs with ``real``.
 
-    ``real`` defaults to every modified path in ``porcelain`` — nothing is line-ending noise,
-    which is what every test that does not exercise the filter expects.
+    ``porcelain`` is written as plain lines and converted to the ``-z`` stream. ``real``
+    defaults to every modified path in ``porcelain`` — nothing is line-ending noise, which
+    is what every test that does not exercise the filter expects.
     """
     if real is None:
         real = [
-            scanner._porcelain_path(line)
+            line[3:].split(" -> ", 1)[-1]
             for line in porcelain.splitlines()
             if line[:2] in MODIFIED_ONLY_CODES
         ]
-    diff_out = "".join(f"{path}\n" for path in real)
+    diff_out = "".join(f"{path}\0" for path in real)
+    porcelain = _porcelain_z(porcelain)
 
     def run(command: tuple[str, ...], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         if "diff" in command:
@@ -54,7 +75,7 @@ def _stub_git(
     monkeypatch.setattr(subprocess, "run", run)
 
 
-def test_dirty_info_counts_nonblank_porcelain_lines(
+def test_dirty_info_counts_porcelain_records(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     for name in ("file_a.py", "file_b.py", "file_c.py"):
@@ -102,8 +123,37 @@ def test_dirty_info_uses_newest_mtime(tmp_path: Path, monkeypatch: pytest.Monkey
     assert latest == pytest.approx(2000.0)
 
 
-def test_porcelain_path_resolves_rename_arrow() -> None:
-    assert scanner._porcelain_path("R  old_name.py -> new_name.py") == "new_name.py"
+def test_porcelain_records_consumes_the_rename_source_field() -> None:
+    # -z drops the arrow and reverses the order: the destination is the record's own path,
+    # the source trails as its own field and must not read as a second entry.
+    out = "R  new.py\0old.py\0 M other.py\0"
+    assert list(scanner._porcelain_records(out)) == [("R ", "new.py"), (" M", "other.py")]
+
+
+def test_porcelain_records_consumes_a_worktree_rename_source() -> None:
+    assert list(scanner._porcelain_records(" R new.py\0old.py\0")) == [(" R", "new.py")]
+
+
+def test_porcelain_records_keeps_spaces_and_quotes_verbatim() -> None:
+    out = ' M VD examples.ahk\0?? "literal quote".txt\0'
+    assert list(scanner._porcelain_records(out)) == [
+        (" M", "VD examples.ahk"),
+        ("??", '"literal quote".txt'),
+    ]
+
+
+def test_run_git_decodes_utf8_not_the_process_locale(monkeypatch: pytest.MonkeyPatch) -> None:
+    # -z delivers raw UTF-8 path bytes; decoding them with the machine locale (cp1252 here)
+    # raises on common characters and would abort the whole scan.
+    captured: dict[str, object] = {}
+
+    def run(command: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs)
+        return _fake_completed("")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    scanner.run_git(Path("repo"), ("status",))
+    assert captured["encoding"] == "utf-8"
 
 
 def test_changed_file_ages_returns_path_and_mtime(
@@ -163,11 +213,21 @@ def test_non_modification_entries_are_never_filtered(
     assert len(scanner.changed_file_ages(tmp_path)) == 1
 
 
-def test_quoted_path_is_never_filtered(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # git quotes non-ASCII paths in porcelain but escapes them differently in diff --name-only,
-    # so they cannot be matched and must be kept.
-    _stub_git(monkeypatch, ' M "\\303\\274ber.py"\n', real=[])
-    assert len(scanner.changed_file_ages(tmp_path)) == 1
+def test_spaced_path_is_filtered_like_any_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The line-based porcelain quotes spaced paths, which used to make them unmatchable
+    # against the diff list; -z prints them raw, so their noise is dropped like any other.
+    porcelain = " M VD examples.ahk\n M other examples/Task Switcher.ahk\n"
+    _stub_git(monkeypatch, porcelain, real=[])
+    assert scanner.changed_file_ages(tmp_path) == []
+
+
+def test_non_ascii_path_is_filtered_like_any_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_git(monkeypatch, " M über.py\n", real=[])
+    assert scanner.changed_file_ages(tmp_path) == []
 
 
 def test_diff_failure_keeps_every_entry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

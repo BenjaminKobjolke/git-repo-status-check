@@ -8,10 +8,13 @@ from pathlib import Path
 import pytest
 
 from git_repo_status_check.constants import (
+    DEFAULT_MIN_VISIT_AGE_SECONDS,
     ENV_SETTINGS_PATH,
     EXAMPLE_SETTINGS_FILE,
     KEY_COMMIT_COMMAND,
     KEY_FILE_EXPLORER,
+    KEY_MIN_MODIFIED_AGE,
+    KEY_MIN_VISIT_AGE,
     KEY_RENAME_PREFIX,
 )
 from git_repo_status_check.settings import (
@@ -117,19 +120,40 @@ def test_load_invalid_ignore_prefixes_raises(tmp_path: Path, bad: object) -> Non
         Settings.load(path)
 
 
-def test_load_min_modified_age_absent_is_none(tmp_path: Path) -> None:
+# The two duration settings share one parser, so they share these tests. Each constant is
+# also the Settings field name, which is what getattr() below relies on.
+_DURATION_KEYS = (KEY_MIN_MODIFIED_AGE, KEY_MIN_VISIT_AGE)
+
+
+@pytest.mark.parametrize(
+    ("key", "default"),
+    [(KEY_MIN_MODIFIED_AGE, None), (KEY_MIN_VISIT_AGE, DEFAULT_MIN_VISIT_AGE_SECONDS)],
+)
+def test_load_absent_duration_falls_back_to_its_default(
+    tmp_path: Path, key: str, default: float | None
+) -> None:
+    """The defaults differ on purpose: the re-prompt window is on unless turned off."""
     path = _write_settings(tmp_path)
-    assert Settings.load(path).min_modified_age is None
+    assert getattr(Settings.load(path), key) == default
 
 
-def test_load_reads_min_modified_age(tmp_path: Path) -> None:
-    path = _write_settings(tmp_path, min_modified_age="1h")
-    assert Settings.load(path).min_modified_age == 3600.0
+@pytest.mark.parametrize("key", _DURATION_KEYS)
+def test_load_reads_duration_setting(tmp_path: Path, key: str) -> None:
+    path = _write_settings(tmp_path, **{key: "4h"})
+    assert getattr(Settings.load(path), key) == 4 * 3600.0
 
 
+@pytest.mark.parametrize("key", _DURATION_KEYS)
+def test_load_null_duration_setting_turns_it_off(tmp_path: Path, key: str) -> None:
+    # parse_duration rejects "0", so an explicit JSON null is the documented off switch.
+    path = _write_settings(tmp_path, **{key: None})
+    assert getattr(Settings.load(path), key) is None
+
+
+@pytest.mark.parametrize("key", _DURATION_KEYS)
 @pytest.mark.parametrize("bad", ["", "banana", "0h", "1y", 42, ["1h"]])
-def test_load_invalid_min_modified_age_raises(tmp_path: Path, bad: object) -> None:
-    path = _write_settings(tmp_path, min_modified_age=bad)
+def test_load_invalid_duration_setting_raises(tmp_path: Path, key: str, bad: object) -> None:
+    path = _write_settings(tmp_path, **{key: bad})
     with pytest.raises(SettingsError):
         Settings.load(path)
 

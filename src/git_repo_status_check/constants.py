@@ -89,6 +89,7 @@ KEY_FOLDERS = "folders"
 KEY_COMMIT_COMMAND = "commit_command"
 KEY_IGNORE_PREFIXES = "ignore_prefixes"
 KEY_MIN_MODIFIED_AGE = "min_modified_age"
+KEY_MIN_VISIT_AGE = "min_visit_age"
 KEY_FILE_EXPLORER = "file_explorer"
 KEY_RENAME_PREFIX = "rename_prefix"
 
@@ -123,6 +124,11 @@ DURATION_BELOW_SMALLEST_UNIT = "less than a minute"
 # Labels for repos listed but not prompted in --commit-ask (see main.build_skip_reason).
 SKIP_LABEL_MUTED = "muted for {duration}"
 SKIP_LABEL_RECENT = "changed {duration} ago"
+SKIP_LABEL_VISITED = "seen {duration} ago"
+
+# How long --commit-ask leaves a repo alone after showing its menu, when "min_visit_age" is
+# not set. Derived from the unit table so the default and the "1h" a user would type agree.
+DEFAULT_MIN_VISIT_AGE_SECONDS = float(DURATION_UNIT_SECONDS["h"])
 
 # Arrow-key menus (see menu.py). Each entry pairs the visible label with the action value
 # the caller switches on, so an option can never be shown without a handler behind it.

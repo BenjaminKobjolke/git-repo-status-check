@@ -27,7 +27,8 @@ Copy `settings.example.json` to `settings.json` and set your folders:
   "file_explorer": "explorer \"[[REPO_PATH]]\"",
   "ignore_prefixes": ["_old_"],
   "rename_prefix": "_old_",
-  "min_modified_age": "1h"
+  "min_modified_age": "1h",
+  "min_visit_age": "1h"
 }
 ```
 
@@ -36,7 +37,9 @@ file manager its `e` action opens a repo in (`[[REPO_PATH]]` is replaced with th
 `ignore_prefixes` prunes folders by name prefix while scanning, `rename_prefix` is the
 prefix its `r` action renames a repo folder with (archiving it out of the next scan), and
 `min_modified_age` holds `--commit-ask` back from repos touched within that window
-(someone is probably still working there) — see [docs/SETTINGS.md](docs/SETTINGS.md).
+(someone is probably still working there), and `min_visit_age` (default `1h`, `null` to
+disable) stops `--commit-ask` re-prompting for a repo whose menu you already saw — see
+[docs/SETTINGS.md](docs/SETTINGS.md).
 
 Each entry of `folders` is a root folder. The scanner walks each root recursively, stops descending
 once it finds a git repo, and (if a repo has a `.gitmodules`) also checks each submodule.
@@ -66,10 +69,12 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--fix-line-e
   *Rename repo* prefixes the repo folder with `rename_prefix` so it drops out of the next scan;
   *Stash changes* runs `git stash push -u` with a `<YYYY_MM_DD> GIT REPO STATUS TOOL` message.
   Muting picks a timeframe (1 day / 1 week / 1 month, or a typed custom value like
-  `4h` / `3d` / `2w`). Muted repos are not prompted for until the mute expires, nor are
+  `4h` / `3d` / `2w`). Muted repos are not prompted for until the mute expires; neither are
+  repos whose menu you already left by any route but *Abort* within `min_visit_age`
+  (default 1 hour, so a quick re-run only asks about what is left), nor
   repos changed more recently than the optional
-  `min_modified_age` setting allows; both stay in the report with a `[muted for 2 days]` /
-  `[changed 12 minutes ago]` label and do not count against `--limit`.
+  `min_modified_age` setting allows; all three stay in the report with a `[muted for 2 days]` /
+  `[seen 10 minutes ago]` / `[changed 12 minutes ago]` label and do not count against `--limit`.
   Requires a non-empty `commit_command` (aborts before scanning if unset)
   and an interactive terminal.
 - `--fix-line-endings` — offer to repair each repo whose only changes are line-ending

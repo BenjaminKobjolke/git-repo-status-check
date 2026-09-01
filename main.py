@@ -11,7 +11,12 @@ from pathlib import Path
 
 from git_repo_status_check.app_logger import AppLogger
 from git_repo_status_check.committer import commit_interactive
-from git_repo_status_check.constants import MUTE_DB_FILE, SKIP_LABEL_MUTED, SKIP_LABEL_RECENT
+from git_repo_status_check.constants import (
+    MUTE_DB_FILE,
+    SKIP_LABEL_MUTED,
+    SKIP_LABEL_RECENT,
+    SKIP_LABEL_VISITED,
+)
 from git_repo_status_check.duration import format_duration
 from git_repo_status_check.line_endings import fix_interactive
 from git_repo_status_check.models import RepoStatus
@@ -74,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     # Only --commit-ask acts per repo, so only it needs the skipped ones kept out of --limit.
-    skip_reason = build_skip_reason(store, settings.min_modified_age) if args.commit_ask else None
+    skip_reason = build_skip_reason(store, settings) if args.commit_ask else None
     statuses = scan_all(settings, on_repo=progress)
     clear_progress()
     shown = report(statuses, limit=args.limit, skip_reason=skip_reason)
@@ -90,18 +95,27 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def build_skip_reason(
-    store: MuteStore, min_modified_age: float | None
-) -> Callable[[RepoStatus], str | None]:
-    """Return a predicate labelling repos --commit-ask will not prompt for (None = actionable)."""
+def build_skip_reason(store: MuteStore, settings: Settings) -> Callable[[RepoStatus], str | None]:
+    """Return a predicate labelling repos --commit-ask will not prompt for (None = actionable).
+
+    Reasons are checked most-deliberate first, so the label names the strongest one: an
+    explicit mute, then a menu you already saw, then a file someone may still be editing.
+    """
 
     def skip_reason(status: RepoStatus) -> str | None:
         now = time.time()
-        muted_until = store.muted_until(str(status.path), now)
+        repo = str(status.path)
+        muted_until = store.muted_until(repo, now)
         if muted_until is not None:
             return SKIP_LABEL_MUTED.format(duration=format_duration(muted_until - now))
+        visited_at = store.last_visit(repo)
+        if settings.min_visit_age is not None and visited_at is not None:
+            since_visit = now - visited_at
+            if since_visit < settings.min_visit_age:
+                return SKIP_LABEL_VISITED.format(duration=format_duration(since_visit))
         # latest_change is 0.0 when no changed file had a readable mtime -- not "1970".
         age = now - status.latest_change
+        min_modified_age = settings.min_modified_age
         if min_modified_age is not None and status.latest_change > 0 and age < min_modified_age:
             return SKIP_LABEL_RECENT.format(duration=format_duration(age))
         return None

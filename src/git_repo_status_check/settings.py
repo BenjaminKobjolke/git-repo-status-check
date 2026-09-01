@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .app_logger import AppLogger
 from .constants import (
+    DEFAULT_MIN_VISIT_AGE_SECONDS,
     ENV_SETTINGS_PATH,
     EXAMPLE_SETTINGS_FILE,
     KEY_COMMIT_COMMAND,
@@ -16,6 +17,7 @@ from .constants import (
     KEY_FOLDERS,
     KEY_IGNORE_PREFIXES,
     KEY_MIN_MODIFIED_AGE,
+    KEY_MIN_VISIT_AGE,
     KEY_RENAME_PREFIX,
     REPO_PATH_TOKEN,
 )
@@ -29,6 +31,7 @@ _EXAMPLE_CONTENT = json.dumps(
         KEY_IGNORE_PREFIXES: ["_old_"],
         KEY_RENAME_PREFIX: "_old_",
         KEY_MIN_MODIFIED_AGE: "1h",
+        KEY_MIN_VISIT_AGE: "1h",
     },
     indent=2,
 )
@@ -48,6 +51,7 @@ class Settings:
     ignore_prefixes: tuple[str, ...] = ()
     rename_prefix: str | None = None
     min_modified_age: float | None = None
+    min_visit_age: float | None = DEFAULT_MIN_VISIT_AGE_SECONDS
 
     @classmethod
     def load(cls, path: Path) -> Settings:
@@ -93,7 +97,10 @@ class Settings:
         file_explorer = cls._parse_optional_string(data, path, KEY_FILE_EXPLORER)
         rename_prefix = cls._parse_optional_string(data, path, KEY_RENAME_PREFIX)
         ignore_prefixes = cls._parse_ignore_prefixes(data, path)
-        min_modified_age = cls._parse_min_modified_age(data, path)
+        min_modified_age = cls._parse_duration_key(data, path, KEY_MIN_MODIFIED_AGE, None)
+        min_visit_age = cls._parse_duration_key(
+            data, path, KEY_MIN_VISIT_AGE, DEFAULT_MIN_VISIT_AGE_SECONDS
+        )
         return cls(
             folders=tuple(folders),
             commit_command=commit_command,
@@ -101,6 +108,7 @@ class Settings:
             ignore_prefixes=ignore_prefixes,
             rename_prefix=rename_prefix,
             min_modified_age=min_modified_age,
+            min_visit_age=min_visit_age,
         )
 
     @staticmethod
@@ -118,18 +126,26 @@ class Settings:
         return value
 
     @staticmethod
-    def _parse_min_modified_age(data: dict[str, object], path: Path) -> float | None:
-        """Optional ``min_modified_age`` -- absent stays None; present must be a duration.
+    def _parse_duration_key(
+        data: dict[str, object], path: Path, key: str, default: float | None
+    ) -> float | None:
+        """Optional duration under ``key`` in seconds -- absent falls back to ``default``.
 
-        Validated here rather than at use time so a typo fails before a slow scan runs.
+        Shared by ``min_modified_age`` and ``min_visit_age``: same contract, same error
+        message. An explicit ``null`` turns the threshold off, which is the only way to do
+        so -- ``parse_duration`` rejects ``"0"``. Validated here rather than at use time so
+        a typo fails before a slow scan runs.
         """
-        if KEY_MIN_MODIFIED_AGE not in data:
+        if key not in data:
+            return default
+        value = data[key]
+        if value is None:
             return None
-        value = data[KEY_MIN_MODIFIED_AGE]
         seconds = parse_duration(value) if isinstance(value, str) else None
         if seconds is None:
             raise SettingsError(
-                f'"{KEY_MIN_MODIFIED_AGE}" in {path} must be a duration like "1h", "3d" or "2w".'
+                f'"{key}" in {path} must be a duration like "1h", "3d" or "2w" (or null to '
+                "turn it off)."
             )
         return seconds
 

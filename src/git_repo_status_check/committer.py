@@ -52,8 +52,10 @@ def commit_interactive(
     (age of files / list files / url / pull / explorer / rename / stash / mute).
     The submenu's explorer entry needs ``file_explorer`` and its rename entry needs
     ``rename_prefix``; without those they report and do nothing.
-    Muting asks for a timeframe and skips the repo. Muted and too-recently-changed
-    repos never reach here -- the caller filters them out. No-op when stdin is not a TTY
+    Muting asks for a timeframe and skips the repo. Leaving a repo's menu any way but
+    Abort records a visit, which holds it back on the next run for ``min_visit_age``.
+    Muted, already-visited and too-recently-changed repos never reach here -- the
+    caller filters them out. No-op when stdin is not a TTY
     (nothing to prompt).
     """
     if not sys.stdin.isatty():
@@ -67,6 +69,9 @@ def commit_interactive(
         if choice == "a":
             print("Aborted.")
             return
+        # Recorded before acting on the choice, so every outcome but Abort counts as a
+        # decision about this repo and min_visit_age keeps it quiet on the next run.
+        store.record_visit(str(status.path), time.time())
         if choice == "s":
             continue
         if choice == "mute":

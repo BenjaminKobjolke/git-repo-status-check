@@ -9,10 +9,11 @@ Needs an interactive terminal and a non-empty `commit_command` in settings (see
 [SETTINGS.md](SETTINGS.md)); the submenu's *Open in file explorer* additionally needs
 `file_explorer` and *Rename repo* needs `rename_prefix`, both optional — without them
 every other entry still works.
-Currently-muted repos are not prompted for, and neither are repos changed more recently than
-the optional `min_modified_age` setting allows. Both are still listed in the report with a
-`[muted for 2 days]` / `[changed 12 minutes ago]` label, and neither counts against
-`--limit`.
+Currently-muted repos are not prompted for, nor repos whose menu you already saw within the
+`min_visit_age` window (1 hour by default), nor repos changed more recently than the optional
+`min_modified_age` setting allows. All three are still listed in the report with a
+`[muted for 2 days]` / `[seen 10 minutes ago]` / `[changed 12 minutes ago]` label, and none
+of them count against `--limit`.
 
 Navigate with the arrow keys and confirm with Enter; Ctrl-C leaves the tool. There are no
 letter keys to type — the menus are rendered by [`pick`](https://github.com/wong2/pick)
@@ -47,6 +48,10 @@ live output. The unit tests replace the menu helper, so a real menu is only exer
 | More actions... | Open the **more** submenu (below). |
 | Skip | Skip this repo; move to the next. |
 | Abort | Abort the loop. No further repos are touched. |
+
+Leaving a repo's menu **any way but Abort** — Commit, Skip, Mute, or a submenu action —
+records a visit, so `min_visit_age` holds that repo back on the next run. Abort records
+nothing: you did not decide about that repo, so it is prompted for again.
 
 ## More submenu
 

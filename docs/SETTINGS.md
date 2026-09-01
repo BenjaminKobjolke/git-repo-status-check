@@ -29,7 +29,9 @@ A JSON object with a required `folders` key (a non-empty list of root folder pat
 optional `commit_command` key used by `--commit-ask`, an optional `file_explorer` key
 for its `e` menu action, an optional `rename_prefix` key for its `r` menu action, an
 optional `ignore_prefixes` key that skips folders by name prefix during scanning, and an
-optional `min_modified_age` key that holds `--commit-ask` back from freshly-touched repos.
+optional `min_modified_age` key that holds `--commit-ask` back from freshly-touched repos,
+and an optional `min_visit_age` key that stops `--commit-ask` re-prompting for a repo you
+just looked at.
 
 ```json
 {
@@ -41,7 +43,8 @@ optional `min_modified_age` key that holds `--commit-ask` back from freshly-touc
   "file_explorer": "explorer \"[[REPO_PATH]]\"",
   "rename_prefix": "_old_",
   "ignore_prefixes": ["_old_"],
-  "min_modified_age": "1h"
+  "min_modified_age": "1h",
+  "min_visit_age": "1h"
 }
 ```
 
@@ -154,6 +157,32 @@ optional `min_modified_age` key that holds `--commit-ask` back from freshly-touc
 }
 ```
 
+### `min_visit_age`
+
+- Type: string duration, or `null`. Optional; **defaults to `"1h"`** — unlike every other
+  optional key, this one is on unless you turn it off.
+- Same accepted forms as `min_modified_age`: a positive integer plus `h` / `d` / `w` /
+  `m` (= 30 days). Examples: `"30m"` is *30 months*, not 30 minutes — there is no minute unit.
+- Whenever `--commit-ask` shows a repo's menu and you leave it by any route except *Abort*
+  (Commit, Skip, Mute, or a submenu action), the tool records the visit. For this long
+  afterwards that repo is not prompted for again, so re-running the tool a few minutes later
+  walks only the repos you have not already decided about.
+- Affects `--commit-ask` only. The repo still appears in the report, labelled
+  `[seen 10 minutes ago]`, and it does not count against `--limit`.
+- Set it to `null` to switch the behaviour off and be prompted for every dirty repo every
+  run. `"0h"` is **not** accepted (durations must be positive) — `null` is the off switch.
+- Visits are stored per repo path in `mutes.db` next to `main.py`, in a table separate from
+  the mutes: they never show up in `--list-muted`, and an explicit mute always wins the label.
+- If present it must parse as a duration or be `null`, or settings validation fails.
+
+```json
+{
+  "folders": ["D:\GIT"],
+  "commit_command": "...",
+  "min_visit_age": "1h"
+}
+```
+
 ## Validation
 
 Settings are validated on load; the tool fails fast with a clear message when:
@@ -165,7 +194,8 @@ Settings are validated on load; the tool fails fast with a clear message when:
 - `commit_command`, `file_explorer` or `rename_prefix` is present but is not a non-empty
   string,
 - `ignore_prefixes` is present but is not a list of non-empty strings,
-- `min_modified_age` is present but is not a parsable duration string (e.g. `"1h"`).
+- `min_modified_age` or `min_visit_age` is present but is neither a parsable duration
+  string (e.g. `"1h"`) nor `null`.
 
 A listed folder that does not exist is **skipped with a warning** (visible with `--debug`), as
 long as at least one folder is valid. This lets one shared settings file cover multiple machines

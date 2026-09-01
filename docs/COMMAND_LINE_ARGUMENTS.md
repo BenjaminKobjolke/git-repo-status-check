@@ -3,8 +3,8 @@
 `main.py` (or `start.bat`) accepts the following arguments. All are optional.
 
 ```
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--fix-line-endings]
-                      [--list-muted] [--debug]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--all]
+                      [--fix-line-endings] [--list-muted] [--debug]
 ```
 
 ## `--settings PATH`
@@ -100,12 +100,26 @@ notice and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
 Muted repos and repos whose newest changed file is younger than the optional
 `min_modified_age` setting are not prompted for. They still appear in the report with a
 `[muted for 2 days]` / `[changed 12 minutes ago]` label, and they do not count against
-`--limit`. See [SETTINGS.md](SETTINGS.md).
+`--limit`. Pass `--all` to prompt for them anyway. See [SETTINGS.md](SETTINGS.md).
 
 Mutes are stored in a `mutes.db` SQLite file in the project root (gitignored, machine-local).
 
 ```bat
 uv run python main.py --commit-ask
+```
+
+## `--all`
+
+Ignore every skip filter for this run: `--commit-ask` prompts for all dirty repos, including
+muted ones, ones whose menu you just saw (`min_visit_age`), and ones changed within
+`min_modified_age`. Nothing is un-muted — the stored mutes are simply not honored this run,
+so the next run without `--all` skips them again.
+
+Only meaningful together with `--commit-ask`; on its own the report already lists every repo.
+With `--limit N`, `N` now counts all repos, since none are held back.
+
+```bat
+uv run python main.py --commit-ask --all
 ```
 
 ## `--fix-line-endings`

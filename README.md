@@ -50,11 +50,18 @@ once it finds a git repo, and (if a repo has a `.gitmodules`) also checks each s
 start.bat
 ```
 
+Two shortcuts for the commit menu (both forward extra arguments, e.g. `--limit 10`):
+
+```bat
+start_commit-ask.bat
+start_commit-ask_all.bat
+```
+
 or directly:
 
 ```bat
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--fix-line-endings]
-                      [--list-muted] [--debug]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--all]
+                      [--fix-line-endings] [--list-muted] [--debug]
 ```
 
 - `--settings PATH` — use a settings file other than `settings.json` in the project root
@@ -77,6 +84,8 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--fix-line-e
   `[seen 10 minutes ago]` / `[changed 12 minutes ago]` label and do not count against `--limit`.
   Requires a non-empty `commit_command` (aborts before scanning if unset)
   and an interactive terminal.
+- `--all` — with `--commit-ask`, prompt for every dirty repo, ignoring mutes,
+  `min_visit_age` and `min_modified_age`. Mutes are kept, just not honored for this run.
 - `--fix-line-endings` — offer to repair each repo whose only changes are line-ending
   noise, by setting its local `core.autocrlf`. Nothing is committed or rewritten on disk.
 - `--list-muted` — list repos currently muted and the date each is muted until, then exit.

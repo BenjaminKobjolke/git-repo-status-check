@@ -92,3 +92,26 @@ def test_visit_wins_over_a_recent_change(store: MuteStore) -> None:
     store.record_visit(_REPO, visited_at=_NOW - 600.0)
     settings = _settings(min_modified_age=3600.0, min_visit_age=3600.0)
     assert main.build_skip_reason(store, settings)(_status(_NOW - 60.0)) == "seen 10 minutes ago"
+
+
+def test_all_flag_drops_the_skip_reason(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """--all must leave --commit-ask with no skip predicate, so muted repos get prompted too."""
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text('{"folders": ["."], "commit_command": "echo hi"}', encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    def fake_report(statuses: object, limit: object = None, skip_reason: object = None) -> list:
+        seen["skip"] = skip_reason
+        return []
+
+    monkeypatch.setattr(main, "scan_all", lambda settings, on_repo=None: [])
+    monkeypatch.setattr(main, "report", fake_report)
+    monkeypatch.setattr(main, "commit_interactive", lambda *args, **kwargs: None)
+
+    argv = ["--settings", str(settings_file), "--commit-ask"]
+    assert main.main([*argv, "--all"]) == 0
+    assert seen["skip"] is None
+
+    seen.clear()
+    assert main.main(argv) == 0
+    assert callable(seen["skip"])

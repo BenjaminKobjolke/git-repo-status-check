@@ -44,6 +44,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Offer to set core.autocrlf per repo whose only changes are line-ending noise.",
     )
     parser.add_argument(
+        "--all",
+        action="store_true",
+        help="With --commit-ask: prompt for every dirty repo, ignoring mutes/visits/recency.",
+    )
+    parser.add_argument(
         "--list-muted",
         action="store_true",
         help="List repos currently muted via --commit-ask (and until when), then exit.",
@@ -79,7 +84,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     # Only --commit-ask acts per repo, so only it needs the skipped ones kept out of --limit.
-    skip_reason = build_skip_reason(store, settings) if args.commit_ask else None
+    # --all drops the predicate entirely, which is what makes every repo actionable again.
+    skip_reason = build_skip_reason(store, settings) if args.commit_ask and not args.all else None
     statuses = scan_all(settings, on_repo=progress)
     clear_progress()
     shown = report(statuses, limit=args.limit, skip_reason=skip_reason)

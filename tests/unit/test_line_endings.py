@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from git_repo_status_check import line_endings
+from git_repo_status_check import line_endings, menu
 from git_repo_status_check.settings import Settings
 
 
@@ -106,7 +106,7 @@ def test_fix_interactive_abort_stops_before_the_second_repo(
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(line_endings, "find_repos", lambda *_a, **_k: iter([tmp_path, tmp_path]))
     monkeypatch.setattr(line_endings, "line_ending_only_paths", lambda _repo: {"noise.txt"})
-    monkeypatch.setattr(line_endings, "input", lambda _prompt: "a", raising=False)
+    monkeypatch.setattr(menu, "choose", lambda _items, _title: "a")
     monkeypatch.setattr(line_endings, "repair", lambda repo, _noisy: repaired.append(repo))
     line_endings.fix_interactive(Settings(folders=(tmp_path,)))
     assert repaired == []

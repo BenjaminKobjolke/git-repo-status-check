@@ -25,13 +25,13 @@ acts on the current repo.
 uv run python main.py --commit-ask
 ```
 
-For each dirty repo you get `[c]ommit / [m]ore / [s]kip / [a]bort`:
+For each dirty repo you get an arrow-key menu — **Commit / More actions... / Skip / Abort**:
 
-- `c` — run the `commit_command` in that repo (Codex's output streams live to your terminal).
-- `m` — secondary actions (file ages, file list, pull, open in your file manager, mute);
-  see [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md).
-- `s` — skip this repo.
-- `a` — stop; no further repos are touched.
+- **Commit** — run the `commit_command` in that repo (Codex's output streams live to your terminal).
+- **More actions...** — secondary actions (file ages, file list, pull, open in your file
+  manager, mute); see [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md).
+- **Skip** — skip this repo.
+- **Abort** — stop; no further repos are touched.
 
 Combine with `--limit` to only walk the most recently changed repos:
 

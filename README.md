@@ -58,12 +58,16 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--fix-line-e
   (also overridable via the `GIT_REPO_STATUS_SETTINGS` environment variable).
 - `--limit N` — show at most `N` repos (newest changes first); summary still reports the true total.
   With `--commit-ask`, `N` counts only repos that are actually prompted for.
-- `--commit-ask` — after the report, prompt `[c]ommit / [m]ore / [s]kip / [a]bort`
-  per dirty repo and run the `commit_command` from settings in that repo's directory on `c`.
-  `m` opens a submenu (age of files / list files / pull / explorer / rename / mute).
-  `rename` prefixes the repo folder with `rename_prefix` so it drops out of the next scan.
-  Muting takes a timeframe (`1d`/`1w`/`1m` or custom like `4h`/`3d`/`2w`). Muted repos are
-  not prompted for until the mute expires, nor are repos changed more recently than the optional
+- `--commit-ask` — after the report, show an arrow-key menu per dirty repo
+  (**Commit / More actions... / Skip / Abort**): arrow keys to move, Enter to confirm,
+  Ctrl-C to leave. *Commit* runs the `commit_command` from settings in that repo's directory.
+  *More actions...* opens a submenu (age of changed files / list changed files / remote url /
+  pull / open in file explorer / rename repo / stash changes / mute repo / back).
+  *Rename repo* prefixes the repo folder with `rename_prefix` so it drops out of the next scan;
+  *Stash changes* runs `git stash push -u` with a `<YYYY_MM_DD> GIT REPO STATUS TOOL` message.
+  Muting picks a timeframe (1 day / 1 week / 1 month, or a typed custom value like
+  `4h` / `3d` / `2w`). Muted repos are not prompted for until the mute expires, nor are
+  repos changed more recently than the optional
   `min_modified_age` setting allows; both stay in the report with a `[muted for 2 days]` /
   `[changed 12 minutes ago]` label and do not count against `--limit`.
   Requires a non-empty `commit_command` (aborts before scanning if unset)
@@ -118,9 +122,15 @@ folder like `node_modules`.
 ```bat
 tools\run_tests.bat              REM unit tests
 tools\run_integration_tests.bat  REM integration tests (creates real temp git repos)
+tools\menu_smoke.bat             REM manual: the arrow-key menus in a real terminal
 ```
+
+`menu_smoke.bat` is not part of the automated suites — the unit tests replace the menu
+helper, so nothing else drives a real menu. Run it by hand after touching
+`src/git_repo_status_check/menu.py`.
 
 ## Dependencies
 
-Runtime: `SQLAlchemy` (stores `--commit-ask` mutes in a SQLite `mutes.db`). Everything else
-is the Python standard library. Dev tooling: `ruff`, `mypy`, `pytest`.
+Runtime: `SQLAlchemy` (stores `--commit-ask` mutes in a SQLite `mutes.db`) and
+`pick[blessed]` (the arrow-key menus). Everything else is the Python standard
+library. Dev tooling: `ruff`, `mypy`, `pytest`.

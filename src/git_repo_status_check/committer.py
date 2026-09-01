@@ -1,6 +1,6 @@
-"""Interactive commit loop: ask c/s/a per dirty repo, run the user's commit command.
+"""Interactive commit loop: a menu per dirty repo, running the user's commit command.
 
-User-facing I/O (print/input) like reporter.py — not logging. Command invocation lives
+User-facing I/O (menus via menu.py, print) like reporter.py — not logging. Command invocation lives
 here rather than in the git-scanning helper, which only reads repo state.
 """
 
@@ -12,22 +12,30 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from . import menu
 from .constants import (
     AGE_DATE_FORMAT,
-    COMMIT_PROMPT,
-    COMMIT_PROMPT_HELP,
+    COMMIT_HEADER,
+    COMMIT_MENU,
     EXPLORER_NOT_CONFIGURED,
-    MORE_PROMPT,
-    MORE_PROMPT_HELP,
-    MUTE_PROMPT,
+    GIT_REMOTE_FETCH_SUFFIX,
+    GIT_REMOTE_VERBOSE,
+    MORE_MENU,
+    MORE_MENU_TITLE,
+    MUTE_CHOICE_CUSTOM,
+    MUTE_CUSTOM_PROMPT,
+    MUTE_MENU,
+    MUTE_MENU_TITLE,
     MUTE_PROMPT_HELP,
+    NO_REMOTE_CONFIGURED,
     RENAME_PREFIX_NOT_CONFIGURED,
     REPO_PATH_TOKEN,
+    STASH_MESSAGE_FORMAT,
 )
 from .duration import parse_duration
 from .models import RepoStatus
 from .mute_store import MuteStore
-from .scanner import changed_file_ages
+from .scanner import changed_file_ages, run_git
 
 
 def commit_interactive(
@@ -39,11 +47,12 @@ def commit_interactive(
 ) -> None:
     """Walk ``statuses`` (already filtered/limited), prompting to run ``command`` per repo.
 
-    ``c`` runs the command in the repo dir, ``s`` skips it, ``a`` stops the whole loop,
-    and ``m`` opens a submenu (age of files / list files / pull / explorer / rename / mute).
-    The submenu's ``e`` needs ``file_explorer`` and its ``r`` needs ``rename_prefix``;
-    without those the keys report and do nothing.
-    Muting waits for a chosen timeframe and skips the repo. Muted and too-recently-changed
+    *Commit* runs the command in the repo dir, *Skip* moves on, *Abort* stops the whole
+    loop, and *More actions...* opens a submenu
+    (age of files / list files / url / pull / explorer / rename / stash / mute).
+    The submenu's explorer entry needs ``file_explorer`` and its rename entry needs
+    ``rename_prefix``; without those they report and do nothing.
+    Muting asks for a timeframe and skips the repo. Muted and too-recently-changed
     repos never reach here -- the caller filters them out. No-op when stdin is not a TTY
     (nothing to prompt).
     """
@@ -52,8 +61,9 @@ def commit_interactive(
         return
 
     for status in statuses:
-        print(f"\n{status.path}  -  {status.dirty_count} uncommitted")
-        choice = _ask(status.path, file_explorer, rename_prefix)
+        header = COMMIT_HEADER.format(path=status.path, count=status.dirty_count)
+        print(f"\n{header}")
+        choice = _ask(header, status.path, file_explorer, rename_prefix)
         if choice == "a":
             print("Aborted.")
             return
@@ -65,52 +75,58 @@ def commit_interactive(
         _run_commit(command, status)
 
 
-def _ask(path: Path, file_explorer: str | None, rename_prefix: str | None) -> str:
-    """Read a top-level c/s/a choice; ``m`` opens the submenu. Returns c/s/a/mute."""
+def _ask(header: str, path: Path, file_explorer: str | None, rename_prefix: str | None) -> str:
+    """Show the per-repo menu; ``m`` opens the submenu. Returns c/s/a/mute.
+
+    ``header`` is the same line printed above the repo, reused as the menu title so the
+    repo stays visible while the full-screen menu is up.
+    """
     while True:
-        choice = input(COMMIT_PROMPT).strip().lower()
-        if choice == "m":
-            sub = _more_menu(path, file_explorer, rename_prefix)
-            if sub == "mute":
-                return "mute"
-            # A renamed repo no longer exists under this path — nothing left to commit.
-            if sub == "renamed":
-                return "s"
-            continue  # 'back' — re-show the top prompt
-        if choice in ("c", "s", "a"):
+        choice = menu.choose(COMMIT_MENU, header)
+        if choice != "m":
             return choice
-        print(COMMIT_PROMPT_HELP)
+        sub = _more_menu(path, file_explorer, rename_prefix)
+        if sub == "mute":
+            return "mute"
+        # Renamed or stashed: nothing left under this path to commit.
+        if sub == "skip":
+            return "s"
+        # 'back' — re-show the top menu.
 
 
 def _more_menu(path: Path, file_explorer: str | None, rename_prefix: str | None) -> str:
-    """Submenu: age / list / pull / explorer / rename / mute / back.
+    """Submenu: age / list / url / pull / explorer / rename / stash / mute / back.
 
-    Returns 'mute', 'renamed' or 'back'. ``a``, ``l``, ``p`` and ``e`` act and re-prompt
-    (they never leave the submenu); so does ``r`` when the rename does not happen.
+    Returns 'mute', 'skip' or 'back'. The read-only actions print and re-prompt (they
+    never leave the submenu); so does ``r`` when the rename does not happen. A rename or
+    a stash leaves nothing to commit here, so both return 'skip'.
     """
+    # Built per call because each closes over this repo's path and the explorer command.
+    printing_actions = {
+        "a": lambda: _list_ages(path),
+        "l": lambda: _list_files(path),
+        "u": lambda: _list_remotes(path),
+        "p": lambda: _run_pull(path),
+        "e": lambda: _open_explorer(file_explorer, path),
+    }
     while True:
-        choice = input(MORE_PROMPT).strip().lower()
-        if choice == "a":
-            _list_ages(path)
-            continue
-        if choice == "l":
-            _list_files(path)
-            continue
-        if choice == "p":
-            _run_pull(path)
-            continue
-        if choice == "e":
-            _open_explorer(file_explorer, path)
+        choice = menu.choose(MORE_MENU, MORE_MENU_TITLE.format(path=path))
+        if choice in printing_actions:
+            printing_actions[choice]()
+            # The next menu repaints the whole screen, so hold the output until read.
+            menu.pause()
             continue
         if choice == "r":
             if _rename_repo(path, rename_prefix):
-                return "renamed"
+                return "skip"
+            menu.pause()
             continue
-        if choice == "m":
-            return "mute"
-        if choice == "b":
-            return "back"
-        print(MORE_PROMPT_HELP)
+        if choice == "s":
+            if _run_stash(path):
+                return "skip"
+            menu.pause()
+            continue
+        return "mute" if choice == "m" else "back"
 
 
 def format_age_date(mtime: float) -> str:
@@ -138,12 +154,19 @@ def _list_ages(path: Path) -> None:
 
 
 def _ask_timeframe() -> float:
-    """Read a mute timeframe (1d/1w/1m or custom), re-prompting until valid. Returns seconds."""
+    """Pick a mute timeframe (1d/1w/1m or custom), re-asking until valid. Returns seconds.
+
+    Only the custom entry falls back to typed input — a menu cannot express an
+    arbitrary duration.
+    """
     while True:
-        seconds = parse_duration(input(MUTE_PROMPT))
+        choice = menu.choose(MUTE_MENU, MUTE_MENU_TITLE)
+        text = menu.ask_text(MUTE_CUSTOM_PROMPT) if choice == MUTE_CHOICE_CUSTOM else choice
+        seconds = parse_duration(text)
         if seconds is not None:
             return seconds
         print(MUTE_PROMPT_HELP)
+        menu.pause()
 
 
 def _list_files(path: Path) -> None:
@@ -160,6 +183,26 @@ def _list_files(path: Path) -> None:
         print(f"  {changed.code} {changed.path}")
 
 
+def _list_remotes(path: Path) -> None:
+    """Print each remote's name and fetch URL; note when the repo has none.
+
+    Captured via ``run_git`` (not streamed like ``_run_pull``) so the push duplicates
+    ``git remote -v`` prints can be dropped before display.
+    """
+    output = run_git(path, GIT_REMOTE_VERBOSE) or ""
+    # Split on the tab, not on whitespace: a local-path remote may contain spaces.
+    rows = [
+        line.removesuffix(GIT_REMOTE_FETCH_SUFFIX).split("\t", 1)
+        for line in output.splitlines()
+        if line.endswith(GIT_REMOTE_FETCH_SUFFIX)
+    ]
+    if not rows:
+        print(NO_REMOTE_CONFIGURED)
+        return
+    for row in rows:
+        print("  " + "  ".join(part.strip() for part in row))
+
+
 def _run_pull(path: Path) -> None:
     """Run ``git pull`` in the repo dir with live output; report the result.
 
@@ -171,6 +214,23 @@ def _run_pull(path: Path) -> None:
         print(f"  OK (pull): {path}")
     else:
         print(f"  FAILED (pull, exit {result.returncode}): {path}")
+
+
+def _run_stash(path: Path) -> bool:
+    """Stash the repo's changes (including untracked) under a dated tool message.
+
+    ``-u`` so the stash also clears untracked files — otherwise the repo stays dirty in the
+    next scan and the prompt comes straight back. Returns True when the stash succeeded.
+    """
+    message = datetime.now(tz=UTC).astimezone().strftime(STASH_MESSAGE_FORMAT)
+    result = subprocess.run(
+        ("git", "-C", str(path), "stash", "push", "-u", "-m", message), check=False
+    )
+    if result.returncode != 0:
+        print(f"  FAILED (stash, exit {result.returncode}): {path}")
+        return False
+    print(f"  Stashed: {message}")
+    return True
 
 
 def _run_commit(command: str, status: RepoStatus) -> None:

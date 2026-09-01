@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from git_repo_status_check import committer
-from git_repo_status_check.constants import EXPLORER_NOT_CONFIGURED, REPO_PATH_TOKEN
+from git_repo_status_check import committer, menu
+from git_repo_status_check.constants import (
+    EXPLORER_NOT_CONFIGURED,
+    NO_REMOTE_CONFIGURED,
+    REPO_PATH_TOKEN,
+)
 from git_repo_status_check.models import ChangedFile
 from git_repo_status_check.mute_store import MuteStore
 
@@ -43,14 +48,6 @@ def test_abort_stops_before_later_repos(
     _answers(monkeypatch, "a", "c")
     committer.commit_interactive(_statuses(2), "do-commit", store)
     mock_run.assert_not_called()
-
-
-def test_invalid_input_reprompts(
-    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
-) -> None:
-    _answers(monkeypatch, "x", "", "c")
-    committer.commit_interactive(_statuses(1), "do-commit", store)
-    mock_run.assert_called_once()
 
 
 def test_list_files_reprompts_and_prints_changes(
@@ -162,10 +159,10 @@ def test_non_tty_returns_without_prompting(
 ) -> None:
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
 
-    def _fail(_: str) -> str:  # input must never be called without a TTY
-        raise AssertionError("input() called without a TTY")
+    def _fail(*_args: object) -> str:  # no menu may open without a TTY
+        raise AssertionError("menu.choose() called without a TTY")
 
-    monkeypatch.setattr("builtins.input", _fail)
+    monkeypatch.setattr(menu, "choose", _fail)
     run = MagicMock()
     monkeypatch.setattr(committer.subprocess, "run", run)
 
@@ -188,7 +185,8 @@ def test_mute_reprompts_on_invalid_timeframe(
     monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
 ) -> None:
     monkeypatch.setattr(committer.time, "time", lambda: 0.0)
-    _answers(monkeypatch, "m", "m", "nope", "1d")  # more -> mute -> bad, then good
+    # more -> mute -> custom -> bad text, then custom -> good text
+    _answers(monkeypatch, "m", "m", "custom", "nope", "custom", "1d")
     committer.commit_interactive(_statuses(1), "do-commit", store)
     assert store.muted_until(str(Path("repo0")), now=0.0) == 86400.0
 
@@ -229,3 +227,63 @@ def test_explorer_without_setting_reports_and_continues(
     assert EXPLORER_NOT_CONFIGURED.strip() in capsys.readouterr().out
     mock_popen.assert_not_called()
     mock_run.assert_called_once()  # the loop carried on
+
+
+def test_stash_runs_git_stash_and_skips_the_repo(
+    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
+) -> None:
+    _answers(monkeypatch, "m", "s")  # more -> stash; a stashed repo has nothing left to commit
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+
+    mock_run.assert_called_once()  # only the stash — the commit command never ran
+    args = tuple(mock_run.call_args.args[0])
+    assert args[:6] == ("git", "-C", str(Path("repo0")), "stash", "push", "-u")
+    assert args[6] == "-m"
+    assert args[7].endswith(" GIT REPO STATUS TOOL")
+    assert re.fullmatch(r"\d{4}_\d{2}_\d{2}", args[7].split(" ", 1)[0])
+
+
+def test_failed_stash_reprompts_instead_of_skipping(
+    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
+) -> None:
+    mock_run.return_value.returncode = 1
+    _answers(monkeypatch, "m", "s", "b", "c")  # failed stash -> back -> commit anyway
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+    assert mock_run.call_count == 2  # the failed stash, then the commit command
+
+
+def test_url_prints_each_remote_once_and_reprompts(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run: MagicMock,
+    store: MuteStore,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # `git remote -v` lists every remote twice (fetch + push); only one row should be shown.
+    monkeypatch.setattr(
+        committer,
+        "run_git",
+        lambda p, args: (
+            "origin\thttps://example.com/x.git (fetch)\norigin\thttps://example.com/x.git (push)\n"
+        ),
+    )
+    _answers(monkeypatch, "m", "u", "b", "c")  # more -> url -> back -> commit
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+
+    out = capsys.readouterr().out
+    assert out.count("https://example.com/x.git") == 1
+    assert "origin" in out
+    mock_run.assert_called_once()  # 'u' did not consume the repo
+
+
+def test_url_without_remote_reports_none(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run: MagicMock,
+    store: MuteStore,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(committer, "run_git", lambda p, args: "")
+    _answers(monkeypatch, "m", "u", "b", "s")  # more -> url -> back -> skip
+    committer.commit_interactive(_statuses(1), "do-commit", store)
+
+    assert NO_REMOTE_CONFIGURED.strip() in capsys.readouterr().out
+    mock_run.assert_not_called()

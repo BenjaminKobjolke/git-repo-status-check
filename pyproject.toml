@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Scan configured folders for git repos with uncommitted changes."
 requires-python = ">=3.11"
 dependencies = [
+    "pick[blessed]>=2.6.0",
     "sqlalchemy>=2.0.52",
 ]
 

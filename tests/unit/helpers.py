@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from git_repo_status_check import menu
 from git_repo_status_check.models import RepoStatus
 
 
@@ -14,6 +15,14 @@ def _statuses(n: int) -> list[RepoStatus]:
 
 
 def _answers(monkeypatch: pytest.MonkeyPatch, *choices: str) -> None:
-    """Feed the given menu choices to input() in order."""
+    """Feed the given action values to the menu helper in order.
+
+    Patches the helper rather than ``pick`` itself: ``pick`` needs a real terminal, and the
+    modules under test call ``menu.choose`` so one patch covers every prompt. Free-text
+    answers (custom mute durations) come off the same queue, and the Enter-to-continue
+    pause is a no-op.
+    """
     it = iter(choices)
-    monkeypatch.setattr("builtins.input", lambda _: next(it))
+    monkeypatch.setattr(menu, "choose", lambda items, title: next(it))
+    monkeypatch.setattr(menu, "ask_text", lambda prompt: next(it))
+    monkeypatch.setattr(menu, "pause", lambda: None)

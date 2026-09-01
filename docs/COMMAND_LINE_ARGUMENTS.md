@@ -59,37 +59,41 @@ uv run python main.py --limit 10
 ## `--commit-ask`
 
 After the report, walk the same dirty repos it showed (respecting `--limit`, newest first)
-and prompt for each: `[c]ommit / [m]ore / [s]kip / [a]bort`.
+and show an arrow-key menu for each: **Commit / More actions... / Skip / Abort**. Navigate
+with the arrow keys, confirm with Enter, leave with Ctrl-C — nothing is typed.
 
-- `c` — run the configured `commit_command` in that repo's directory (output streams live).
-- `m` — open a submenu of secondary actions:
-  `[a]ge of files / [l]ist files / [p]ull / [e]xplorer / [r]ename / [m]ute / [b]ack`.
-  - `a` — show the modification date of each changed file. When every changed file shares
+- **Commit** — run the configured `commit_command` in that repo's directory (output streams live).
+- **More actions...** — open a submenu: age of changed files / list changed files / remote
+  url / pull / open in file explorer / rename repo / stash changes / mute repo / back.
+  - *Age of changed files* — show the modification date of each changed file. When every changed file shares
     the same date, it collapses to one line (e.g. `All 5 files: 22.08.2026`); otherwise each
     file is listed with its date.
-  - `l` — list the changed files in this repo — the same set that was counted, so
-    line-ending-only changes are absent — then prompt again.
-  - `p` — run `git pull` in this repo (live output), then prompt again. Use it to
+  - *List changed files* — list the changed files in this repo — the same set that was counted, so
+    line-ending-only changes are absent — then show the submenu again.
+  - *Pull* — run `git pull` in this repo (live output), then show the submenu again. Use it to
     fast-forward before committing. A plain pull — if it can't proceed (e.g. local
     changes conflict) it fails loudly and nothing else is touched.
-  - `e` — open this repo in the file manager configured as `file_explorer`, launched
-    detached so the prompt returns right away, then prompt again.
-  - `r` — rename this repo's folder to `<rename_prefix><name>` (e.g. `_old_project`), so
+  - *Open in file explorer* — open this repo in the file manager configured as `file_explorer`, launched
+    detached so the prompt returns right away, then show the submenu again.
+  - *Rename repo* — rename this repo's folder to `<rename_prefix><name>` (e.g. `_old_project`), so
     a matching `ignore_prefixes` entry keeps it out of the next scan. The repo is
-    consumed; a refused rename just prompts again.
-  - `m` — mute this repo, then pick a timeframe (`1d` / `1w` / `1m` or a custom value like
-    `4h` / `3d` / `2w`). The repo is still listed but no longer prompted for in
+    consumed; a refused rename returns to the submenu.
+  - *Stash changes* — `git stash push -u` this repo's changes (untracked included) under the message
+    `<YYYY_MM_DD> GIT REPO STATUS TOOL`. The repo is consumed — it is clean afterwards, so
+    there is nothing left to commit; a failed stash returns to the submenu.
+  - *Mute repo* — mute this repo, then pick a timeframe from a menu (1 day / 1 week / 1 month, or
+    *Custom duration...* which asks for typed input like `4h` / `3d` / `2w`). The repo is still listed but no longer prompted for in
     future `--commit-ask` runs until the mute expires (`1m` = 30 days).
-  - `b` — back to the top prompt.
-- `s` — skip this repo.
-- `a` — abort the loop; no further repos are touched.
+  - *Back* — back to the top menu.
+- **Skip** — skip this repo.
+- **Abort** — abort the loop; no further repos are touched.
 
 See [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) for the full menu reference.
 
 Requires a non-empty `commit_command` in settings.json (see
 [SETTINGS.md](SETTINGS.md)); without one the tool prints an error and exits 1 **before
-scanning**. The submenu's `e` action additionally needs `file_explorer` and `r` needs
-`rename_prefix`, but both keys are optional — without them only those actions are
+scanning**. The submenu's *Open in file explorer* additionally needs `file_explorer` and *Rename repo*
+needs `rename_prefix`, but both settings are optional — without them only those actions are
 unavailable. Needs an interactive terminal — with piped/redirected stdin it prints a
 notice and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
 
@@ -110,8 +114,8 @@ Walk the configured folders and offer to repair every repo whose *only* uncommit
 are line-ending noise. Such repos never appear in the normal report (the filter empties
 them), so this mode does its own walk. Needs an interactive terminal.
 
-Per repo it prints the path and the number of phantom changes, then asks
-`[y]es fix / [n]o skip / [a]bort`. Answering `y` sets the repo's **local** `core.autocrlf` to
+Per repo it prints the path and the number of phantom changes, then shows a menu:
+**Fix line endings / Skip / Abort**. Choosing *Fix line endings* sets the repo's **local** `core.autocrlf` to
 whichever value makes git agree with the index again, and refreshes the index's stale stat
 data with `git add` on exactly those paths. Nothing is committed, no file on disk is
 rewritten, and no `.gitattributes` is touched.
@@ -127,13 +131,17 @@ uv run python main.py --fix-line-endings
 
 ```
 D:\GIT\some\repo  -  12 line-ending-only change(s)
-  [y]es fix / [n]o skip / [a]bort? y
+
+ > Fix line endings
+   Skip
+   Abort
+
   OK: core.autocrlf=true — 12 phantom change(s) gone.
 ```
 
 ## `--list-muted`
 
-List repos currently muted (via the `--commit-ask` `m` choice) and the date each is muted
+List repos currently muted (via the `--commit-ask` *Mute repo* action) and the date each is muted
 until, soonest expiry first, then exit. Does not scan and does not need a `commit_command`.
 Expired mutes are not shown. Prints `No muted repos.` when none are active.
 

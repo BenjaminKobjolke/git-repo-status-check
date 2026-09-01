@@ -65,6 +65,11 @@ GIT_CONFIG_UNSET_AUTOCRLF: tuple[str, ...] = ("config", "--unset", "core.autocrl
 # output means the file and its blob agree and only the index's cached stat data is stale.
 GIT_DIFF_WORKTREE_NAMES: tuple[str, ...] = ("diff", "--name-only", "-z", "--")
 
+# Remote listing for the submenu's [u]rl key. `-v` is the one form that prints the URLs; it
+# names each remote twice (fetch + push), so only the fetch rows are shown.
+GIT_REMOTE_VERBOSE: tuple[str, ...] = ("remote", "-v")
+GIT_REMOTE_FETCH_SUFFIX = "(fetch)"
+
 # Refreshes that stale stat data. Only ever run on paths the diff above just reported as
 # content-identical, so it can never stage an actual change.
 GIT_ADD_PATHS: tuple[str, ...] = ("add", "--")
@@ -119,22 +124,59 @@ DURATION_BELOW_SMALLEST_UNIT = "less than a minute"
 SKIP_LABEL_MUTED = "muted for {duration}"
 SKIP_LABEL_RECENT = "changed {duration} ago"
 
-# Interactive commit-loop prompts.
-COMMIT_PROMPT = "  [c]ommit / [m]ore / [s]kip / [a]bort? "
-COMMIT_PROMPT_HELP = "  Please enter c, m, s, or a."
-MORE_PROMPT = "  [a]ge of files / [l]ist files / [p]ull / [e]xplorer / [r]ename / [m]ute / [b]ack? "
-MORE_PROMPT_HELP = "  Please enter a, l, p, e, r, m, or b."
-MUTE_PROMPT = "  Mute for [1d] / [1w] / [1m] / custom (e.g. 4h, 3d, 2w)? "
+# Arrow-key menus (see menu.py). Each entry pairs the visible label with the action value
+# the caller switches on, so an option can never be shown without a handler behind it.
+MENU_INDICATOR = ">"
+# Not pick's curses default: a child process that inherits the console kills curses'
+# arrow-key translation for the rest of the run (see menu.py).
+MENU_BACKEND = "blessed"
+MENU_PAUSE_PROMPT = "  Press Enter to continue... "
+MENU_NEEDS_TTY = "Menus need a real terminal; this is not a console."
+
+COMMIT_HEADER = "{path}  -  {count} uncommitted"
+COMMIT_MENU = (
+    ("Commit", "c"),
+    ("More actions...", "m"),
+    ("Skip", "s"),
+    ("Abort", "a"),
+)
+MORE_MENU_TITLE = "{path}  -  more actions"
+MORE_MENU = (
+    ("Age of changed files", "a"),
+    ("List changed files", "l"),
+    ("Remote url", "u"),
+    ("Pull", "p"),
+    ("Open in file explorer", "e"),
+    ("Rename repo", "r"),
+    ("Stash changes", "s"),
+    ("Mute repo", "m"),
+    ("Back", "b"),
+)
+# Stash message, rendered with strftime — a fixed marker so tool-made stashes are recognizable.
+STASH_MESSAGE_FORMAT = "%Y_%m_%d GIT REPO STATUS TOOL"
+MUTE_CHOICE_CUSTOM = "custom"
+MUTE_MENU_TITLE = "Mute this repo for..."
+MUTE_MENU = (
+    ("1 day", "1d"),
+    ("1 week", "1w"),
+    ("1 month", "1m"),
+    ("Custom duration...", MUTE_CHOICE_CUSTOM),
+)
+MUTE_CUSTOM_PROMPT = "  Duration (e.g. 4h, 3d, 2w): "
 MUTE_PROMPT_HELP = "  Please enter a duration like 4h, 1d, 1w, 1m, 3d, or 2w."
+NO_REMOTE_CONFIGURED = "  (no remote)"
 EXPLORER_NOT_CONFIGURED = f'  No "{KEY_FILE_EXPLORER}" configured in settings.'
 RENAME_PREFIX_NOT_CONFIGURED = f'  No "{KEY_RENAME_PREFIX}" configured in settings.'
 
 # --fix-line-endings prompts and results.
 FIX_NEEDS_TTY = "--fix-line-endings needs an interactive terminal; nothing to do."
 FIX_NONE_FOUND = "No repos with line-ending-only changes."
-FIX_HEADER = "\n{repo}  -  {count} line-ending-only change(s)"
-FIX_PROMPT = "  [y]es fix / [n]o skip / [a]bort? "
-FIX_PROMPT_HELP = "  Please enter y, n, or a."
+FIX_HEADER = "{repo}  -  {count} line-ending-only change(s)"
+FIX_MENU = (
+    ("Fix line endings", "y"),
+    ("Skip", "n"),
+    ("Abort", "a"),
+)
 FIX_APPLIED = "  OK: core.autocrlf={value} — {count} phantom change(s) gone."
 FIX_FAILED = "  FAILED: no core.autocrlf value made it clean (a .gitattributes rule likely wins)."
 

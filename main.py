@@ -31,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--commit-ask",
         action="store_true",
-        help="Prompt c/l/m/s/a per dirty repo and run the settings commit_command on commit.",
+        help="Show a menu per dirty repo and run the settings commit_command on commit.",
     )
     parser.add_argument(
         "--fix-line-endings",

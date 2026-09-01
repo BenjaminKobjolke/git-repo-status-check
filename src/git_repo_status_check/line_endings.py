@@ -10,15 +10,15 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import menu
 from .constants import (
     AUTOCRLF_CANDIDATES,
     FIX_APPLIED,
     FIX_FAILED,
     FIX_HEADER,
+    FIX_MENU,
     FIX_NEEDS_TTY,
     FIX_NONE_FOUND,
-    FIX_PROMPT,
-    FIX_PROMPT_HELP,
     GIT_ADD_PATHS,
     GIT_CONFIG_GET_LOCAL_AUTOCRLF,
     GIT_CONFIG_SET_AUTOCRLF,
@@ -93,8 +93,9 @@ def fix_interactive(settings: Settings) -> None:
                 continue
             clear_progress()
             found = True
-            print(FIX_HEADER.format(repo=repo, count=len(noisy)))
-            choice = _ask()
+            header = FIX_HEADER.format(repo=repo, count=len(noisy))
+            print(f"\n{header}")
+            choice = menu.choose(FIX_MENU, header)
             if choice == "a":
                 return
             if choice == "y":
@@ -102,15 +103,6 @@ def fix_interactive(settings: Settings) -> None:
     clear_progress()
     if not found:
         print(FIX_NONE_FOUND)
-
-
-def _ask() -> str:
-    """Read a y/n/a choice, re-prompting until one of them is given."""
-    while True:
-        choice = input(FIX_PROMPT).strip().lower()
-        if choice in ("y", "n", "a"):
-            return choice
-        print(FIX_PROMPT_HELP)
 
 
 def _local_autocrlf(repo: Path) -> str:

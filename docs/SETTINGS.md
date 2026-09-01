@@ -56,7 +56,7 @@ optional `min_modified_age` key that holds `--commit-ask` back from freshly-touc
 ### `commit_command`
 
 - Type: string. Optional; omit it if you don't use `--commit-ask`.
-- The command run in each repo's directory when you answer `c` at the `--commit-ask` prompt
+- The command run in each repo's directory when you choose *Commit* in the `--commit-ask` menu
   (see [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md)).
 - Run via the shell with the working directory set to the repo, so the command needs no repo
   path of its own. Output streams live to the console.
@@ -73,15 +73,15 @@ optional `min_modified_age` key that holds `--commit-ask` back from freshly-touc
 ### `file_explorer`
 
 - Type: string. Optional; omit it if you don't use the `--commit-ask` `e` action.
-- The command run when you answer `e` in the `--commit-ask` **more** submenu (see
+- The command run when you choose *Open in file explorer* in the `--commit-ask` **more** submenu (see
   [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md)) to open the current repo in a file manager.
 - `[[REPO_PATH]]` in the string is replaced with the repo's path. **Quote it yourself** —
   paths contain spaces: `"fman \"[[REPO_PATH]]\""`.
 - Without `[[REPO_PATH]]`, the quoted repo path is appended, so a bare `"explorer"` works.
-- Launched **detached** — the menu re-prompts immediately rather than waiting for the file
+- Launched **detached** — the menu comes back immediately rather than waiting for the file
   manager to close. Nothing is reported about how it exits.
 - If present it must be a non-empty string, or settings validation fails. If it is absent
-  and you press `e`, the tool says so and the loop carries on.
+  and you choose *Open in file explorer*, the tool says so and the loop carries on.
 
 ```json
 {
@@ -92,19 +92,19 @@ optional `min_modified_age` key that holds `--commit-ask` back from freshly-touc
 
 ### `rename_prefix`
 
-- Type: string. Optional; omit it if you don't use the `--commit-ask` `r` action.
-- The prefix prepended to a repo's **folder name** when you answer `r` in the `--commit-ask`
+- Type: string. Optional; omit it if you don't use the `--commit-ask` *Rename repo* action.
+- The prefix prepended to a repo's **folder name** when you choose *Rename repo* in the `--commit-ask`
   **more** submenu (see [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md)):
   `D:\GIT\project` becomes `D:\GIT\_old_project`.
 - Set it to one of your `ignore_prefixes` entries and the renamed folder is pruned from the
   next scan — that is the point of the action: archive a repo you no longer want prompted for.
 - Only the folder is renamed; nothing inside the repo is touched, and the rename is undone by
   renaming the folder back.
-- Refused (with a message, the menu re-prompts) when the name already starts with the prefix,
+- Refused (with a message, back to the submenu) when the name already starts with the prefix,
   when the target name already exists, or when the OS rejects the rename (e.g. a file in the
   repo is open). Nothing is overwritten.
 - If present it must be a non-empty string, or settings validation fails. If it is absent and
-  you press `r`, the tool says so and the loop carries on.
+  you choose *Rename repo*, the tool says so and the loop carries on.
 
 ```json
 {

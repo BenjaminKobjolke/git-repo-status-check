@@ -26,7 +26,7 @@ from .constants import (
     GIT_DIFF_WORKTREE_NAMES,
 )
 from .reporter import clear_progress, progress
-from .scanner import changed_paths, find_repos, line_ending_only_paths, run_git
+from .scanner import changed_paths, line_ending_only_paths, run_git, walk_repos
 from .settings import Settings
 
 
@@ -85,21 +85,19 @@ def fix_interactive(settings: Settings) -> None:
         return
 
     found = False
-    for root in settings.folders:
-        for repo in find_repos(root, settings.ignore_prefixes):
-            progress(repo)
-            noisy = line_ending_only_paths(repo)
-            if not noisy:
-                continue
-            clear_progress()
-            found = True
-            header = FIX_HEADER.format(repo=repo, count=len(noisy))
-            print(f"\n{header}")
-            choice = menu.choose(FIX_MENU, header)
-            if choice == "a":
-                return
-            if choice == "y":
-                print(repair(repo, noisy).message())
+    for repo in walk_repos(settings, progress):
+        noisy = line_ending_only_paths(repo)
+        if not noisy:
+            continue
+        clear_progress()
+        found = True
+        header = FIX_HEADER.format(repo=repo, count=len(noisy))
+        print(f"\n{header}")
+        choice = menu.choose(FIX_MENU, header)
+        if choice == "a":
+            return
+        if choice == "y":
+            print(repair(repo, noisy).message())
     clear_progress()
     if not found:
         print(FIX_NONE_FOUND)

@@ -70,6 +70,28 @@ GIT_DIFF_WORKTREE_NAMES: tuple[str, ...] = ("diff", "--name-only", "-z", "--")
 GIT_REMOTE_VERBOSE: tuple[str, ...] = ("remote", "-v")
 GIT_REMOTE_FETCH_SUFFIX = "(fetch)"
 
+# --pull-ask: bring the remote refs up to date, then measure this branch against its upstream.
+# `--quiet` because the fetch runs per repo across a whole root and its progress chatter would
+# bury the report; failures still surface through run_git.
+GIT_FETCH: tuple[str, ...] = ("fetch", "--quiet")
+# The tracking branch's name ("origin/main"). Exits non-zero when there is none -- a detached
+# HEAD or a branch nobody pushed -- which is exactly how such repos are skipped.
+GIT_UPSTREAM_NAME: tuple[str, ...] = (
+    "rev-parse",
+    "--abbrev-ref",
+    "--symbolic-full-name",
+    "@{u}",
+)
+# Prints "<behind>\t<ahead>": commits the upstream has that HEAD lacks, and vice versa. The
+# three-dot form is what makes it symmetric; two dots would count only one direction.
+GIT_BEHIND_AHEAD: tuple[str, ...] = ("rev-list", "--left-right", "--count", "@{u}...HEAD")
+GIT_BEHIND_AHEAD_SEPARATOR = "\t"
+
+# A remote wanting credentials would otherwise block `git fetch` on a console prompt and hang
+# the whole walk. Set once for the process, so no env has to be threaded through run_git.
+GIT_TERMINAL_PROMPT_ENV = "GIT_TERMINAL_PROMPT"
+GIT_TERMINAL_PROMPT_OFF = "0"
+
 # Refreshes that stale stat data. Only ever run on paths the diff above just reported as
 # content-identical, so it can never stage an actual change.
 GIT_ADD_PATHS: tuple[str, ...] = ("add", "--")
@@ -138,7 +160,9 @@ MENU_INDICATOR = ">"
 MENU_BACKEND = "blessed"
 MENU_PAUSE_PROMPT = "  Press Enter to continue... "
 MENU_NEEDS_TTY = "Menus need a real terminal; this is not a console."
+MENU_ABORTED = "Aborted."
 
+COMMIT_NEEDS_TTY = "--commit-ask needs an interactive terminal; nothing to do."
 COMMIT_HEADER = "{path}  -  {count} uncommitted"
 COMMIT_MENU = (
     ("Commit", "c"),
@@ -185,6 +209,32 @@ FIX_MENU = (
 )
 FIX_APPLIED = "  OK: core.autocrlf={value} — {count} phantom change(s) gone."
 FIX_FAILED = "  FAILED: no core.autocrlf value made it clean (a .gitattributes rule likely wins)."
+
+# --pull-ask prompts and labels.
+PULL_NEEDS_TTY = "--pull-ask needs an interactive terminal; nothing to do."
+PULL_NONE_BEHIND = "No repos behind their upstream."
+# A count rather than a line per repo: on a re-run the held-back repos are most of the walk.
+PULL_SKIPPED_SUMMARY = (
+    "\nSkipped {count} repo(s) without fetching (muted, or seen within min_visit_age). "
+    "Pass --all to check them anyway."
+)
+DEBUG_PULL_SKIPPED = "{repo}: not fetched ({reason})"
+PULL_HEADER = "{path}  -  {behind} commit(s) behind {upstream}"
+# Appended to the header when the repo also has local changes: a plain pull can fail on them,
+# so the count is a warning, never a filter.
+PULL_HEADER_DIRTY = "  -  {count} uncommitted"
+PULL_MENU = (
+    ("Pull", "p"),
+    ("Skip", "s"),
+    ("Mute repo", "m"),
+    ("Abort", "a"),
+)
+
+# --list-muted section headings: the two ask-modes keep separate mutes, so both are listed.
+MUTED_SECTION_COMMIT = "Commit mutes (--commit-ask):"
+MUTED_SECTION_PULL = "Pull mutes (--pull-ask):"
+MUTED_NONE = "No muted repos."
+MUTED_LINE = "{path}  -  muted until {until}"
 
 # Date format for the changed-file age display.
 AGE_DATE_FORMAT = "%d.%m.%Y"

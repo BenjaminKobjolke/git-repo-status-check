@@ -23,7 +23,18 @@ from collections.abc import Sequence
 
 from pick import pick
 
-from .constants import MENU_BACKEND, MENU_INDICATOR, MENU_NEEDS_TTY, MENU_PAUSE_PROMPT
+from .constants import (
+    MENU_BACKEND,
+    MENU_INDICATOR,
+    MENU_NEEDS_TTY,
+    MENU_PAUSE_PROMPT,
+    MUTE_CHOICE_CUSTOM,
+    MUTE_CUSTOM_PROMPT,
+    MUTE_MENU,
+    MUTE_MENU_TITLE,
+    MUTE_PROMPT_HELP,
+)
+from .duration import parse_duration
 
 MenuItems = Sequence[tuple[str, str]]
 
@@ -60,3 +71,20 @@ def ask_text(prompt: str) -> str:
 def pause() -> None:
     """Wait for Enter: the next menu takes the whole screen, hiding what was just printed."""
     input(MENU_PAUSE_PROMPT)
+
+
+def ask_timeframe() -> float:
+    """Pick a mute timeframe (1d/1w/1m or custom), re-asking until valid. Returns seconds.
+
+    Only the custom entry falls back to typed input -- a menu cannot express an arbitrary
+    duration. Lives here rather than with either ask-mode because both mute repos, and a
+    second copy of the prompt would be the only way for the two to disagree.
+    """
+    while True:
+        choice = choose(MUTE_MENU, MUTE_MENU_TITLE)
+        text = ask_text(MUTE_CUSTOM_PROMPT) if choice == MUTE_CHOICE_CUSTOM else choice
+        seconds = parse_duration(text)
+        if seconds is not None:
+            return seconds
+        print(MUTE_PROMPT_HELP)
+        pause()

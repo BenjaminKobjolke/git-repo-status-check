@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from git_repo_status_check.mute_store import MuteStore
+from git_repo_status_check.mute_store import MuteStore, PullMute, muted_label
 
 
 def test_list_active_excludes_expired_and_sorts_by_expiry(store: MuteStore) -> None:
@@ -67,3 +67,24 @@ def test_visits_persist_across_instances(tmp_path: Path) -> None:
     db = tmp_path / "mutes.db"
     MuteStore(db).record_visit("D:/GIT/foo", visited_at=42.0)
     assert MuteStore(db).last_visit("D:/GIT/foo") == 42.0
+
+
+def test_pull_mutes_are_invisible_to_commit_mutes(tmp_path: Path) -> None:
+    """The whole point of the second table: the two ask-modes must not silence each other."""
+    db = tmp_path / "mutes.db"
+    commit_store = MuteStore(db)
+    pull_store = MuteStore(db, PullMute)
+
+    pull_store.mute("D:/GIT/foo", muted_until=999.0)
+    assert commit_store.muted_until("D:/GIT/foo", now=0.0) is None
+    assert commit_store.list_active(now=0.0) == []
+
+    commit_store.mute("D:/GIT/bar", muted_until=999.0)
+    assert pull_store.muted_until("D:/GIT/bar", now=0.0) is None
+    assert [r.path for r in pull_store.list_active(now=0.0)] == ["D:/GIT/foo"]
+
+
+def test_muted_label_reports_the_remaining_time(store: MuteStore) -> None:
+    store.mute("D:/GIT/foo", muted_until=100.0 + 2 * 86400)
+    assert muted_label(store, "D:/GIT/foo", now=100.0) == "muted for 2 days"
+    assert muted_label(store, "D:/GIT/unmuted", now=100.0) is None

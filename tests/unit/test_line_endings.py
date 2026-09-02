@@ -93,7 +93,7 @@ def test_fix_interactive_without_a_tty_does_nothing(
 ) -> None:
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
     monkeypatch.setattr(
-        line_endings, "find_repos", lambda *_a, **_k: pytest.fail("must not walk without a TTY")
+        line_endings, "walk_repos", lambda *_a, **_k: pytest.fail("must not walk without a TTY")
     )
     line_endings.fix_interactive(Settings(folders=(Path("root"),)))
     assert "interactive terminal" in capsys.readouterr().out
@@ -104,7 +104,7 @@ def test_fix_interactive_abort_stops_before_the_second_repo(
 ) -> None:
     repaired: list[Path] = []
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(line_endings, "find_repos", lambda *_a, **_k: iter([tmp_path, tmp_path]))
+    monkeypatch.setattr(line_endings, "walk_repos", lambda *_a, **_k: iter([tmp_path, tmp_path]))
     monkeypatch.setattr(line_endings, "line_ending_only_paths", lambda _repo: {"noise.txt"})
     monkeypatch.setattr(menu, "choose", lambda _items, _title: "a")
     monkeypatch.setattr(line_endings, "repair", lambda repo, _noisy: repaired.append(repo))

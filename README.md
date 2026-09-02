@@ -50,17 +50,18 @@ once it finds a git repo, and (if a repo has a `.gitmodules`) also checks each s
 start.bat
 ```
 
-Two shortcuts for the commit menu (both forward extra arguments, e.g. `--limit 10`):
+Shortcuts for the interactive menus (all forward extra arguments, e.g. `--limit 10`):
 
 ```bat
 start_commit-ask.bat
 start_commit-ask_all.bat
+start_pull-ask.bat
 ```
 
 or directly:
 
 ```bat
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--all]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] [--all]
                       [--fix-line-endings] [--list-muted] [--debug]
 ```
 
@@ -84,15 +85,23 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--all]
   `[seen 10 minutes ago]` / `[changed 12 minutes ago]` label and do not count against `--limit`.
   Requires a non-empty `commit_command` (aborts before scanning if unset)
   and an interactive terminal.
-- `--all` — with `--commit-ask`, prompt for every dirty repo, ignoring mutes,
+- `--pull-ask` — the other direction: fetch every repo and show a menu
+  (**Pull / Skip / Mute repo / Abort**) for each one that is *behind* its upstream, most
+  stale first. Repos with no tracking branch are skipped silently. Muted repos, and ones
+  whose menu you already saw within `min_visit_age`, are dropped *before* the fetch — so a
+  re-run only checks what you have not dealt with yet. Its mutes and visits are separate
+  from `--commit-ask`'s. See [docs/PULL_ASK.md](docs/PULL_ASK.md).
+- `--all` — with `--commit-ask` or `--pull-ask`, prompt for every repo, ignoring mutes,
   `min_visit_age` and `min_modified_age`. Mutes are kept, just not honored for this run.
 - `--fix-line-endings` — offer to repair each repo whose only changes are line-ending
   noise, by setting its local `core.autocrlf`. Nothing is committed or rewritten on disk.
-- `--list-muted` — list repos currently muted and the date each is muted until, then exit.
+- `--list-muted` — list repos currently muted (commit mutes and pull mutes, in separate
+  sections) and the date each is muted until, then exit.
 - `--debug` — enable diagnostic logging.
 
 See [docs/COMMAND_LINE_ARGUMENTS.md](docs/COMMAND_LINE_ARGUMENTS.md),
 [docs/COMMIT_ASK_MENU.md](docs/COMMIT_ASK_MENU.md) (the `--commit-ask` menu),
+[docs/PULL_ASK.md](docs/PULL_ASK.md) (the `--pull-ask` mode),
 [docs/SETTINGS.md](docs/SETTINGS.md), and [docs/CODEX.md](docs/CODEX.md) (commit-with-Codex
 examples) for details.
 
@@ -145,6 +154,6 @@ helper, so nothing else drives a real menu. Run it by hand after touching
 
 ## Dependencies
 
-Runtime: `SQLAlchemy` (stores `--commit-ask` mutes in a SQLite `mutes.db`) and
+Runtime: `SQLAlchemy` (stores `--commit-ask` and `--pull-ask` mutes in a SQLite `mutes.db`) and
 `pick[blessed]` (the arrow-key menus). Everything else is the Python standard
 library. Dev tooling: `ruff`, `mypy`, `pytest`.

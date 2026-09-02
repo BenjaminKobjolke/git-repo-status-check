@@ -3,7 +3,7 @@
 `main.py` (or `start.bat`) accepts the following arguments. All are optional.
 
 ```
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--all]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] [--all]
                       [--fix-line-endings] [--list-muted] [--debug]
 ```
 
@@ -108,6 +108,39 @@ Mutes are stored in a `mutes.db` SQLite file in the project root (gitignored, ma
 uv run python main.py --commit-ask
 ```
 
+## `--pull-ask`
+
+Fetch every repo under the configured folders and show a menu — **Pull / Skip / Mute repo /
+Abort** — for each one that is *behind* its upstream, most stale first. Repos with no
+tracking branch (detached HEAD, unpushed branch, no remote) are skipped silently.
+
+This is the opposite question from the rest of the tool: `--commit-ask` is about local
+changes you have not pushed, `--pull-ask` is about remote changes you have not pulled. It
+does its own walk because it has to fetch, and it needs no `commit_command`.
+
+Repos it should not re-check are dropped **before** the fetch, not after: muted ones, and
+ones whose menu you already saw within `min_visit_age` (default `1h`). Those cost no network
+at all and are reported as a single `Skipped N repo(s) without fetching` line — which is what
+makes a re-run take seconds instead of minutes. `--debug` names each skipped repo.
+
+Its mutes and visits are stored separately from `--commit-ask`'s, so muting or answering for
+a repo here does not silence it there. Needs an interactive terminal.
+
+**See [PULL_ASK.md](PULL_ASK.md) for the full description of the mode and its menu.**
+
+```bat
+uv run python main.py --pull-ask
+```
+
+```
+D:\GIT\some\repo  -  4 commit(s) behind origin/main
+
+ > Pull
+   Skip
+   Mute repo
+   Abort
+```
+
 ## `--all`
 
 Ignore every skip filter for this run: `--commit-ask` prompts for all dirty repos, including
@@ -115,7 +148,11 @@ muted ones, ones whose menu you just saw (`min_visit_age`), and ones changed wit
 `min_modified_age`. Nothing is un-muted — the stored mutes are simply not honored this run,
 so the next run without `--all` skips them again.
 
-Only meaningful together with `--commit-ask`; on its own the report already lists every repo.
+With `--pull-ask` it likewise ignores that mode's own mutes and visits, so every repo is
+fetched again.
+
+Only meaningful together with `--commit-ask` or `--pull-ask`; on its own the report already
+lists every repo.
 With `--limit N`, `N` now counts all repos, since none are held back.
 
 ```bat
@@ -155,16 +192,22 @@ D:\GIT\some\repo  -  12 line-ending-only change(s)
 
 ## `--list-muted`
 
-List repos currently muted (via the `--commit-ask` *Mute repo* action) and the date each is muted
-until, soonest expiry first, then exit. Does not scan and does not need a `commit_command`.
-Expired mutes are not shown. Prints `No muted repos.` when none are active.
+List repos currently muted (via either ask-mode's *Mute repo* action) and the date each is
+muted until, soonest expiry first, then exit. Does not scan and does not need a
+`commit_command`. Expired mutes are not shown. Prints `No muted repos.` when none are
+active anywhere.
+
+The two modes keep separate mutes, so both are listed under a heading each.
 
 ```bat
 uv run python main.py --list-muted
 ```
 
 ```
-D:\GIT\some\repo  -  muted until 2026-08-31 08:41
+Commit mutes (--commit-ask):
+  D:\GIT\some\repo  -  muted until 2026-08-31 08:41
+Pull mutes (--pull-ask):
+  No muted repos.
 ```
 
 ## `--debug`

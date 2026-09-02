@@ -12,27 +12,23 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from . import menu
+from . import menu, upstream
 from .constants import (
     AGE_DATE_FORMAT,
     COMMIT_HEADER,
     COMMIT_MENU,
+    COMMIT_NEEDS_TTY,
     EXPLORER_NOT_CONFIGURED,
     GIT_REMOTE_FETCH_SUFFIX,
     GIT_REMOTE_VERBOSE,
+    MENU_ABORTED,
     MORE_MENU,
     MORE_MENU_TITLE,
-    MUTE_CHOICE_CUSTOM,
-    MUTE_CUSTOM_PROMPT,
-    MUTE_MENU,
-    MUTE_MENU_TITLE,
-    MUTE_PROMPT_HELP,
     NO_REMOTE_CONFIGURED,
     RENAME_PREFIX_NOT_CONFIGURED,
     REPO_PATH_TOKEN,
     STASH_MESSAGE_FORMAT,
 )
-from .duration import parse_duration
 from .models import RepoStatus
 from .mute_store import MuteStore
 from .scanner import changed_file_ages, run_git
@@ -49,7 +45,8 @@ def commit_interactive(
 
     *Commit* runs the command in the repo dir, *Skip* moves on, *Abort* stops the whole
     loop, and *More actions...* opens a submenu
-    (age of files / list files / url / pull / explorer / rename / stash / mute).
+    (age of files / list files / url / pull / explorer / rename / stash / mute); the pull
+    itself is ``upstream.run_pull``, shared with ``--pull-ask``.
     The submenu's explorer entry needs ``file_explorer`` and its rename entry needs
     ``rename_prefix``; without those they report and do nothing.
     Muting asks for a timeframe and skips the repo. Leaving a repo's menu any way but
@@ -59,7 +56,7 @@ def commit_interactive(
     (nothing to prompt).
     """
     if not sys.stdin.isatty():
-        print("--commit-ask needs an interactive terminal; nothing to do.")
+        print(COMMIT_NEEDS_TTY)
         return
 
     for status in statuses:
@@ -67,7 +64,7 @@ def commit_interactive(
         print(f"\n{header}")
         choice = _ask(header, status.path, file_explorer, rename_prefix)
         if choice == "a":
-            print("Aborted.")
+            print(MENU_ABORTED)
             return
         # Recorded before acting on the choice, so every outcome but Abort counts as a
         # decision about this repo and min_visit_age keeps it quiet on the next run.
@@ -75,7 +72,7 @@ def commit_interactive(
         if choice == "s":
             continue
         if choice == "mute":
-            store.mute(str(status.path), time.time() + _ask_timeframe())
+            store.mute(str(status.path), time.time() + menu.ask_timeframe())
             continue
         _run_commit(command, status)
 
@@ -111,7 +108,7 @@ def _more_menu(path: Path, file_explorer: str | None, rename_prefix: str | None)
         "a": lambda: _list_ages(path),
         "l": lambda: _list_files(path),
         "u": lambda: _list_remotes(path),
-        "p": lambda: _run_pull(path),
+        "p": lambda: upstream.run_pull(path),
         "e": lambda: _open_explorer(file_explorer, path),
     }
     while True:
@@ -158,22 +155,6 @@ def _list_ages(path: Path) -> None:
             print(f"  {date}  {file_path}")
 
 
-def _ask_timeframe() -> float:
-    """Pick a mute timeframe (1d/1w/1m or custom), re-asking until valid. Returns seconds.
-
-    Only the custom entry falls back to typed input — a menu cannot express an
-    arbitrary duration.
-    """
-    while True:
-        choice = menu.choose(MUTE_MENU, MUTE_MENU_TITLE)
-        text = menu.ask_text(MUTE_CUSTOM_PROMPT) if choice == MUTE_CHOICE_CUSTOM else choice
-        seconds = parse_duration(text)
-        if seconds is not None:
-            return seconds
-        print(MUTE_PROMPT_HELP)
-        menu.pause()
-
-
 def _list_files(path: Path) -> None:
     """Print the repo's changed files; note when there are none.
 
@@ -206,19 +187,6 @@ def _list_remotes(path: Path) -> None:
         return
     for row in rows:
         print("  " + "  ".join(part.strip() for part in row))
-
-
-def _run_pull(path: Path) -> None:
-    """Run ``git pull`` in the repo dir with live output; report the result.
-
-    Streams like ``_run_commit`` (not captured like ``scanner.run_git``) so the
-    user sees fetch/merge progress. Plain pull — failures surface as-is.
-    """
-    result = subprocess.run(("git", "-C", str(path), "pull"), check=False)
-    if result.returncode == 0:
-        print(f"  OK (pull): {path}")
-    else:
-        print(f"  FAILED (pull, exit {result.returncode}): {path}")
 
 
 def _run_stash(path: Path) -> bool:

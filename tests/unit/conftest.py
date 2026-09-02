@@ -9,12 +9,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from git_repo_status_check import committer
-from git_repo_status_check.mute_store import MuteStore
+from git_repo_status_check.mute_store import MuteStore, PullMute
 
 
 @pytest.fixture
 def store(tmp_path: Path) -> MuteStore:
     return MuteStore(tmp_path / "mutes.db")
+
+
+@pytest.fixture
+def pull_store(tmp_path: Path) -> MuteStore:
+    """The same database, addressing the ``--pull-ask`` mute table instead."""
+    return MuteStore(tmp_path / "mutes.db", PullMute)
 
 
 @pytest.fixture

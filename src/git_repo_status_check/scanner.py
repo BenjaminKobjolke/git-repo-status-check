@@ -43,11 +43,15 @@ def find_repos(root: Path, ignore_prefixes: tuple[str, ...] = ()) -> Iterator[Pa
         ]
 
 
-def run_git(repo: Path, args: tuple[str, ...]) -> str | None:
+def run_git(repo: Path, args: tuple[str, ...], quiet: bool = False) -> str | None:
     """Run ``git -C <repo> <args>``; return stdout, or None if git failed.
 
     Output is decoded as UTF-8 (git's own path encoding) rather than by the process
     locale, which raises on ordinary non-ASCII names under ``-z``.
+
+    ``quiet`` logs a failure at debug level instead of warning. Some callers ask questions
+    a repo is allowed to have no answer to -- ``--pull-ask`` queries the upstream of every
+    repo it walks, and the ones without a tracking branch are normal, not warnings.
     """
     try:
         result = subprocess.run(
@@ -65,10 +69,11 @@ def run_git(repo: Path, args: tuple[str, ...]) -> str | None:
         stderr = result.stderr.strip()
         # .git can exist yet be unreadable (dead gitlink/worktree pointer, empty dir).
         # Warn cleanly instead of dumping the raw fatal; the repo is skipped either way.
+        log = AppLogger.debug if quiet else AppLogger.warning
         if "not a git repository" in stderr:
-            AppLogger.warning(f"{repo}: .git present but not a valid git repository — skipping")
+            log(f"{repo}: .git present but not a valid git repository — skipping")
         else:
-            AppLogger.warning(f"git {' '.join(args)} failed in {repo}: {stderr}")
+            log(f"git {' '.join(args)} failed in {repo}: {stderr}")
         return None
     return result.stdout
 
@@ -235,17 +240,24 @@ def scan_repo(repo: Path) -> list[RepoStatus]:
     return statuses
 
 
-def scan_all(settings: Settings, on_repo: Callable[[Path], None] | None = None) -> list[RepoStatus]:
-    """Scan every configured root; return dirty repos + submodules, newest change first.
+def walk_repos(settings: Settings, on_repo: Callable[[Path], None] | None = None) -> Iterator[Path]:
+    """Yield every git repo under every configured root, announcing each before it is used.
 
-    ``on_repo`` is called with each repo path just before it is scanned (progress display).
+    Every mode visits exactly the same repos and differs only in what it then asks about
+    one, so the walk itself — the roots, ``ignore_prefixes``, the progress callback — is
+    defined here rather than repeated per mode. ``on_repo`` is called with each repo path
+    just before it is yielded (progress display).
     """
-    results: list[RepoStatus] = []
     for root in settings.folders:
         AppLogger.debug(f"Scanning {root}")
         for repo in find_repos(root, settings.ignore_prefixes):
             if on_repo is not None:
                 on_repo(repo)
-            results.extend(scan_repo(repo))
+            yield repo
+
+
+def scan_all(settings: Settings, on_repo: Callable[[Path], None] | None = None) -> list[RepoStatus]:
+    """Scan every configured root; return dirty repos + submodules, newest change first."""
+    results = [status for repo in walk_repos(settings, on_repo) for status in scan_repo(repo)]
     results.sort(key=lambda s: s.latest_change, reverse=True)
     return results

@@ -163,16 +163,24 @@ just looked at.
   optional key, this one is on unless you turn it off.
 - Same accepted forms as `min_modified_age`: a positive integer plus `h` / `d` / `w` /
   `m` (= 30 days). Examples: `"30m"` is *30 months*, not 30 minutes — there is no minute unit.
-- Whenever `--commit-ask` shows a repo's menu and you leave it by any route except *Abort*
-  (Commit, Skip, Mute, or a submenu action), the tool records the visit. For this long
-  afterwards that repo is not prompted for again, so re-running the tool a few minutes later
-  walks only the repos you have not already decided about.
-- Affects `--commit-ask` only. The repo still appears in the report, labelled
-  `[seen 10 minutes ago]`, and it does not count against `--limit`.
-- Set it to `null` to switch the behaviour off and be prompted for every dirty repo every
-  run. `"0h"` is **not** accepted (durations must be positive) — `null` is the off switch.
-- Visits are stored per repo path in `mutes.db` next to `main.py`, in a table separate from
-  the mutes: they never show up in `--list-muted`, and an explicit mute always wins the label.
+- Whenever an ask-mode shows a repo's menu and you leave it by any route except *Abort*, the
+  tool records the visit. For this long afterwards that repo is not prompted for again, so
+  re-running the tool a few minutes later only covers the repos you have not already decided
+  about. *Abort* records nothing — you did not decide about that repo.
+- **Affects `--commit-ask` and `--pull-ask`, but they act on it differently**, because the
+  cost of a repo differs between them:
+  - `--commit-ask` — the repo is still scanned and still listed, labelled
+    `[seen 10 minutes ago]`; it is only not prompted for, and does not count against
+    `--limit`. Reading `git status` is cheap.
+  - `--pull-ask` — the repo is dropped **before** its `git fetch`, so it is not listed at
+    all; you get one `Skipped N repo(s) without fetching` line instead. The fetch is the
+    entire cost of that mode, so skipping it is the point (see [PULL_ASK.md](PULL_ASK.md)).
+- Set it to `null` to switch the behaviour off and be prompted for every repo every run.
+  `"0h"` is **not** accepted (durations must be positive) — `null` is the off switch.
+- Visits are stored per repo path in `mutes.db` next to `main.py`, in tables separate from
+  the mutes: they never show up in `--list-muted`, and an explicit mute always wins the
+  label. Each mode has its own visit table, so answering for a repo in one does not silence
+  it in the other.
 - If present it must parse as a duration or be `null`, or settings validation fails.
 
 ```json

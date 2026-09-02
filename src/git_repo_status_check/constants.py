@@ -143,6 +143,17 @@ DURATION_LABEL_SECONDS: tuple[tuple[str, int], ...] = (
 )
 DURATION_BELOW_SMALLEST_UNIT = "less than a minute"
 
+# What an ask-mode reports about the repos it left alone this run (see mute_store.ScanSkip).
+# A count rather than a line per repo: on a re-run the held-back repos are most of the walk.
+# One template with the work it saved, so both modes word it the same way.
+SKIPPED_SUMMARY = (
+    "\nSkipped {count} repo(s) without {work} (muted, or seen within min_visit_age). "
+    "Pass --all to check them anyway."
+)
+SKIPPED_WORK_FETCHING = "fetching"
+SKIPPED_WORK_SCANNING = "scanning"
+DEBUG_SKIPPED_REPO = "{repo}: not checked ({reason})"
+
 # Labels for repos listed but not prompted in --commit-ask (see main.build_skip_reason).
 SKIP_LABEL_MUTED = "muted for {duration}"
 SKIP_LABEL_RECENT = "changed {duration} ago"
@@ -213,12 +224,6 @@ FIX_FAILED = "  FAILED: no core.autocrlf value made it clean (a .gitattributes r
 # --pull-ask prompts and labels.
 PULL_NEEDS_TTY = "--pull-ask needs an interactive terminal; nothing to do."
 PULL_NONE_BEHIND = "No repos behind their upstream."
-# A count rather than a line per repo: on a re-run the held-back repos are most of the walk.
-PULL_SKIPPED_SUMMARY = (
-    "\nSkipped {count} repo(s) without fetching (muted, or seen within min_visit_age). "
-    "Pass --all to check them anyway."
-)
-DEBUG_PULL_SKIPPED = "{repo}: not fetched ({reason})"
 PULL_HEADER = "{path}  -  {behind} commit(s) behind {upstream}"
 # Appended to the header when the repo also has local changes: a plain pull can fail on them,
 # so the count is a warning, never a filter.
@@ -229,6 +234,13 @@ PULL_MENU = (
     ("Mute repo", "m"),
     ("Abort", "a"),
 )
+# Spliced in after Pull by ``upstream.pull_menu``, but only for a repo with local changes:
+# the dirty tree is what makes a plain pull fail, so stashing is the way through it. Hidden
+# on a clean repo rather than shown and failing -- there would be nothing to stash.
+PULL_MENU_STASH = ("Stash changes and pull", "t")
+# Spliced in after the stash entry, but only when a ``rename_prefix`` is configured: the same
+# archive-it rename the --commit-ask submenu offers, for a repo you would rather stop pulling.
+PULL_MENU_RENAME = ("Rename repo", "r")
 
 # --list-muted section headings: the two ask-modes keep separate mutes, so both are listed.
 MUTED_SECTION_COMMIT = "Commit mutes (--commit-ask):"

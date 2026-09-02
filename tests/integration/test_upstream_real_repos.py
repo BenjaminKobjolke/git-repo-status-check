@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from git_repo_status_check.settings import Settings
-from git_repo_status_check.upstream import scan_upstream
+from git_repo_status_check.upstream import walk_upstream
 
 from .helpers import _GIT_ENV_ARGS, _git, _init_repo
 
@@ -36,7 +36,7 @@ def test_clone_behind_its_origin_is_reported(tmp_path: Path) -> None:
     clone = _clone(origin, tmp_path / "roots" / "clone")
     _commit_more(origin, "second")
 
-    results = scan_upstream(Settings(folders=(tmp_path / "roots",)))
+    results = list(walk_upstream(Settings(folders=(tmp_path / "roots",))))
 
     assert len(results) == 1
     assert results[0].path == clone
@@ -47,7 +47,7 @@ def test_clone_behind_its_origin_is_reported(tmp_path: Path) -> None:
 def test_up_to_date_clone_is_not_reported(tmp_path: Path) -> None:
     origin = _init_repo(tmp_path / "origin")
     _clone(origin, tmp_path / "roots" / "clone")
-    assert scan_upstream(Settings(folders=(tmp_path / "roots",))) == []
+    assert list(walk_upstream(Settings(folders=(tmp_path / "roots",)))) == []
 
 
 def test_clone_only_ahead_is_not_reported(tmp_path: Path) -> None:
@@ -55,13 +55,13 @@ def test_clone_only_ahead_is_not_reported(tmp_path: Path) -> None:
     origin = _init_repo(tmp_path / "origin")
     clone = _clone(origin, tmp_path / "roots" / "clone")
     _commit_more(clone, "local work")
-    assert scan_upstream(Settings(folders=(tmp_path / "roots",))) == []
+    assert list(walk_upstream(Settings(folders=(tmp_path / "roots",)))) == []
 
 
 def test_repo_without_a_remote_is_ignored(tmp_path: Path) -> None:
     # No upstream at all -- must be skipped silently, not crash and not be reported.
     _init_repo(tmp_path / "roots" / "solo")
-    assert scan_upstream(Settings(folders=(tmp_path / "roots",))) == []
+    assert list(walk_upstream(Settings(folders=(tmp_path / "roots",)))) == []
 
 
 def test_dirty_clone_still_reports_its_uncommitted_count(tmp_path: Path) -> None:
@@ -70,7 +70,7 @@ def test_dirty_clone_still_reports_its_uncommitted_count(tmp_path: Path) -> None
     _commit_more(origin, "second")
     (clone / "scratch.txt").write_text("wip", encoding="utf-8")
 
-    results = scan_upstream(Settings(folders=(tmp_path / "roots",)))
+    results = list(walk_upstream(Settings(folders=(tmp_path / "roots",))))
 
     assert len(results) == 1
     assert results[0].dirty_count == 1

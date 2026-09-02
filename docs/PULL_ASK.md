@@ -18,7 +18,7 @@ uv run python main.py --pull-ask [--all] [--settings PATH] [--debug]
 
 It walks the same configured `folders` as every other mode (same `ignore_prefixes`, same
 "stop descending once a repo is found" rule — see [SCANNING.md](SCANNING.md)). Repos that
-are muted or that you already saw within `min_visit_age` are dropped **before** anything
+are muted or that were already settled within `min_visit_age` are dropped **before** anything
 else happens (see below). For each repo that survives that:
 
 1. `git fetch --quiet` — updates the remote refs. This is the slow part; a live
@@ -32,26 +32,39 @@ else happens (see below). For each repo that survives that:
 
 Repos that are only *ahead* are not reported: there is nothing to pull.
 
-Then it prints the list, most stale first, and shows a menu per repo.
+A repo found behind is put to you **immediately**, mid-walk, before the rest are fetched:
 
 ```
 D:\GIT\some\repo  -  4 commit(s) behind origin/main
-D:\GIT\other\repo  -  1 commit(s) behind origin/master  -  3 uncommitted
 ```
 
+That is deliberate. Fetching a few hundred repos takes minutes, so collecting them all
+before the first question meant an interrupted run decided nothing at all. The cost is
+ordering: repos arrive in walk order, not most-behind-first, because sorting needs the whole
+walk finished.
+
 The `3 uncommitted` note is a **warning, not a filter** — repos with local changes are still
-prompted for. A plain `git pull` usually succeeds anyway and fails loudly when it cannot.
+prompted for. A plain `git pull` usually succeeds anyway and fails loudly when it cannot;
+when it cannot, the **menu comes back for the same repo** so *Stash changes and pull* is
+still one keystroke away.
 
 ## The menu
 
 ```
-D:\GIT\some\repo  -  4 commit(s) behind origin/main
+D:\GIT\some\repo  -  4 commit(s) behind origin/main  -  3 uncommitted
 
  > Pull
+   Stash changes and pull
+   Rename repo
    Skip
    Mute repo
    Abort
 ```
+
+*Stash changes and pull* appears **only on a repo with local changes** — on a clean one
+there would be nothing to stash. *Rename repo* appears **only when `rename_prefix` is
+configured** — without one there is nothing to rename to. Either way the entry is left out
+rather than shown and failing.
 
 Arrow keys to move, Enter to confirm, Ctrl-C to leave — nothing is typed. Same `pick`
 wrapper as every other menu in the tool ([COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) explains
@@ -59,8 +72,10 @@ why it runs on the blessed backend).
 
 | Entry | Action |
 |-------|--------|
-| Pull | Run `git pull` in this repo, output streaming live, then wait for Enter and move to the next repo. A plain pull — no rebase, no autostash. If it cannot proceed it fails loudly and nothing else is touched. |
-| Skip | Skip this repo; move to the next. |
+| Pull | Run `git pull --no-edit` in this repo, output streaming live, then wait for Enter and move to the next repo. A plain pull — no rebase, no autostash. `--no-edit` keeps a merge commit from dropping you into the git editor on top of the menu. If the pull fails, nothing is touched and the **menu is shown again for this repo** — the usual cause is local changes, and *Stash changes and pull* is right there. |
+| Stash changes and pull | Only shown when the repo has local changes. Runs `git stash push -u -m "<YYYY_MM_DD> GIT REPO STATUS TOOL"` — the same stash as the `--commit-ask` submenu, including untracked files — and then pulls. If the stash fails, the pull is **not** attempted (the dirty tree is exactly what would trip it up) and the menu is shown again — *Skip* to leave the repo alone. Recover your work with `git stash pop`. |
+| Rename repo | Only shown when `rename_prefix` is set. Renames the repo folder to `<rename_prefix><name>` (e.g. `_old_project`) — the same rename as the `--commit-ask` submenu — so a matching `ignore_prefixes` entry keeps it out of the next scan. Nothing is pulled: the repo is no longer at that path. A refused rename (no prefix, already prefixed, target exists) shows the menu again. |
+| Skip | Skip this repo; move to the next. Also how you leave a repo whose pull just failed. |
 | Mute repo | Mute this repo, then pick a timeframe (1 day / 1 week / 1 month, or *Custom duration...* for typed input like `4h` / `3d` / `2w`). Muted repos are listed but not prompted for until the mute expires. |
 | Abort | Abort the loop. No further repos are touched. |
 
@@ -80,13 +95,19 @@ Two rules hold a repo back:
 
 **Muted** — you chose *Mute repo* and the timeframe has not expired.
 
-**Recently seen** — you already had this repo's menu up within `min_visit_age` (default
-`1h`, `null` to switch off; see [SETTINGS.md](SETTINGS.md)). A visit is recorded when you
-leave a repo's menu by **any route except Abort** — Pull, Skip and Mute all count as "you
-decided about this one". Abort records nothing, since you did not decide.
+**Already settled** — this repo was checked within `min_visit_age` (default `1h`, `null`
+to switch off; see [SETTINGS.md](SETTINGS.md)). A repo is settled two ways:
 
-That is what makes a re-run cheap: the second run only fetches the repos you have not
-already dealt with.
+- **Its menu was shown to you.** The visit is recorded *before* the menu is drawn, so Pull,
+  Skip, Mute, *Abort* and Ctrl-C all leave it recorded — you were shown the repo either way.
+  Repos further down the walk that you never reached stay untouched.
+- **The fetch found nothing to pull.** Up to date, no tracking branch, detached HEAD, an
+  unreachable remote — no menu is ever shown for those, so the walk settles them itself.
+
+That is what makes a re-run cheap, and it is why the same repo does not greet you on every
+run: bail out of it once and the next run moves on to the one behind it. The flip side —
+a repo you looked at and ignored stays behind its upstream, quietly, until the window
+expires.
 
 Both are stored per repo path in `mutes.db`, in `pull_mutes` and `pull_visits` — tables of
 their own, separate from `--commit-ask`'s `mutes` and `visits`. Muting or visiting a repo

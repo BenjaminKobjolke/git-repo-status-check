@@ -38,7 +38,7 @@ file manager its `e` action opens a repo in (`[[REPO_PATH]]` is replaced with th
 prefix its `r` action renames a repo folder with (archiving it out of the next scan), and
 `min_modified_age` holds `--commit-ask` back from repos touched within that window
 (someone is probably still working there), and `min_visit_age` (default `1h`, `null` to
-disable) stops `--commit-ask` re-prompting for a repo whose menu you already saw — see
+disable) stops both ask-modes re-checking a repo they already settled — see
 [docs/SETTINGS.md](docs/SETTINGS.md).
 
 Each entry of `folders` is a root folder. The scanner walks each root recursively, stops descending
@@ -77,20 +77,28 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] 
   *Rename repo* prefixes the repo folder with `rename_prefix` so it drops out of the next scan;
   *Stash changes* runs `git stash push -u` with a `<YYYY_MM_DD> GIT REPO STATUS TOOL` message.
   Muting picks a timeframe (1 day / 1 week / 1 month, or a typed custom value like
-  `4h` / `3d` / `2w`). Muted repos are not prompted for until the mute expires; neither are
-  repos whose menu you already left by any route but *Abort* within `min_visit_age`
-  (default 1 hour, so a quick re-run only asks about what is left), nor
-  repos changed more recently than the optional
-  `min_modified_age` setting allows; all three stay in the report with a `[muted for 2 days]` /
-  `[seen 10 minutes ago]` / `[changed 12 minutes ago]` label and do not count against `--limit`.
+  `4h` / `3d` / `2w`). Muted repos, and repos already settled within `min_visit_age`
+  (default 1 hour), are dropped *before* the scan — they cost no git call and are reported
+  as a single `Skipped N repo(s) without scanning` line, so a quick re-run only asks about
+  what is left. A repo counts as settled when you left its menu by any route but *Abort*,
+  or when the scan found nothing to commit in it. Repos changed more recently than the
+  optional `min_modified_age` setting allows are still listed, labelled
+  `[changed 12 minutes ago]`, and do not count against `--limit`.
   Requires a non-empty `commit_command` (aborts before scanning if unset)
   and an interactive terminal.
 - `--pull-ask` — the other direction: fetch every repo and show a menu
-  (**Pull / Skip / Mute repo / Abort**) for each one that is *behind* its upstream, most
-  stale first. Repos with no tracking branch are skipped silently. Muted repos, and ones
-  whose menu you already saw within `min_visit_age`, are dropped *before* the fetch — so a
-  re-run only checks what you have not dealt with yet. Its mutes and visits are separate
-  from `--commit-ask`'s. See [docs/PULL_ASK.md](docs/PULL_ASK.md).
+  (**Pull / Stash changes and pull / Rename repo / Skip / Mute repo / Abort**) for each one
+  that is *behind* its upstream. The stash entry appears only when the repo has local changes
+  and the rename entry only when `rename_prefix` is set; both run the same actions as the
+  `--commit-ask` submenu. A failed
+  pull re-shows the menu for the same repo, so stashing is still one keystroke away. The menu
+  comes up **during** the walk, the moment a repo is found behind, so an interrupted run
+  still decided everything it asked about. Repos with no tracking branch are skipped
+  silently. Muted repos, and ones already settled within `min_visit_age`, are dropped
+  *before* the fetch — so a re-run only checks what you have not dealt with yet. A repo
+  counts as settled once its menu was shown to you (Ctrl-C and *Abort* included), or when
+  the fetch found nothing to pull. Its mutes and visits are separate from `--commit-ask`'s.
+  See [docs/PULL_ASK.md](docs/PULL_ASK.md).
 - `--all` — with `--commit-ask` or `--pull-ask`, prompt for every repo, ignoring mutes,
   `min_visit_age` and `min_modified_age`. Mutes are kept, just not honored for this run.
 - `--fix-line-endings` — offer to repair each repo whose only changes are line-ending

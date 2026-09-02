@@ -24,94 +24,84 @@ def _status(latest_change: float = 0.0) -> RepoStatus:
     return RepoStatus(path=Path("repo0"), dirty_count=1, latest_change=latest_change)
 
 
-def _settings(
-    min_modified_age: float | None = None, min_visit_age: float | None = None
-) -> Settings:
-    """Settings carrying only the two thresholds the skip reason reads."""
-    return Settings(
-        folders=(Path("."),),
-        min_modified_age=min_modified_age,
-        min_visit_age=min_visit_age,
-    )
+def _settings(min_modified_age: float | None = None) -> Settings:
+    """Settings carrying only the threshold the skip reason still reads.
+
+    Mutes and visits are applied a level earlier, at the walk (``mute_store.ScanSkip``), so
+    ``min_visit_age`` no longer reaches this predicate at all.
+    """
+    return Settings(folders=(Path("."),), min_modified_age=min_modified_age)
 
 
-def test_muted_repo_reports_remaining_time(store: MuteStore) -> None:
-    store.mute(_REPO, muted_until=_NOW + 2 * 86400.0)
-    assert main.build_skip_reason(store, _settings())(_status()) == "muted for 2 days"
-
-
-def test_recently_changed_repo_reports_its_age(store: MuteStore) -> None:
-    reason = main.build_skip_reason(store, _settings(min_modified_age=3600.0))(
-        _status(_NOW - 300.0)
-    )
+def test_recently_changed_repo_reports_its_age() -> None:
+    reason = main.build_skip_reason(_settings(min_modified_age=3600.0))(_status(_NOW - 300.0))
     assert reason == "changed 5 minutes ago"
 
 
-def test_old_enough_repo_has_no_skip_reason(store: MuteStore) -> None:
-    settings = _settings(min_modified_age=3600.0)
-    assert main.build_skip_reason(store, settings)(_status(_NOW - 7200.0)) is None
+def test_old_enough_repo_has_no_skip_reason() -> None:
+    assert (
+        main.build_skip_reason(_settings(min_modified_age=3600.0))(_status(_NOW - 7200.0)) is None
+    )
 
 
-def test_undated_repo_has_no_skip_reason(store: MuteStore) -> None:
+def test_undated_repo_has_no_skip_reason() -> None:
     # latest_change stays 0.0 when no changed file had a readable mtime -- not "1970".
-    settings = _settings(min_modified_age=3600.0)
-    assert main.build_skip_reason(store, settings)(_status(0.0)) is None
+    assert main.build_skip_reason(_settings(min_modified_age=3600.0))(_status(0.0)) is None
 
 
-def test_no_threshold_and_no_mute_means_actionable(store: MuteStore) -> None:
-    assert main.build_skip_reason(store, _settings())(_status(_NOW)) is None
+def test_no_threshold_means_actionable() -> None:
+    assert main.build_skip_reason(_settings())(_status(_NOW)) is None
 
 
-def test_recently_visited_repo_reports_how_long_ago(store: MuteStore) -> None:
-    store.record_visit(_REPO, visited_at=_NOW - 600.0)
-    settings = _settings(min_visit_age=3600.0)
-    assert main.build_skip_reason(store, settings)(_status()) == "seen 10 minutes ago"
-
-
-def test_visit_older_than_the_window_is_actionable_again(store: MuteStore) -> None:
-    store.record_visit(_REPO, visited_at=_NOW - 7200.0)
-    settings = _settings(min_visit_age=3600.0)
-    assert main.build_skip_reason(store, settings)(_status()) is None
-
-
-def test_visit_is_ignored_when_min_visit_age_is_off(store: MuteStore) -> None:
-    store.record_visit(_REPO, visited_at=_NOW)
-    assert main.build_skip_reason(store, _settings(min_visit_age=None))(_status()) is None
-
-
-def test_mute_wins_over_a_fresh_visit(store: MuteStore) -> None:
-    """An explicit mute is the user's own decision, so its label takes precedence."""
-    store.mute(_REPO, muted_until=_NOW + 2 * 86400.0)
-    store.record_visit(_REPO, visited_at=_NOW)
-    settings = _settings(min_visit_age=3600.0)
-    assert main.build_skip_reason(store, settings)(_status()) == "muted for 2 days"
-
-
-def test_visit_wins_over_a_recent_change(store: MuteStore) -> None:
-    """Both apply; the visit is checked first so the label names what you actually did."""
-    store.record_visit(_REPO, visited_at=_NOW - 600.0)
-    settings = _settings(min_modified_age=3600.0, min_visit_age=3600.0)
-    assert main.build_skip_reason(store, settings)(_status(_NOW - 60.0)) == "seen 10 minutes ago"
-
-
-def test_all_flag_drops_the_skip_reason(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """--all must leave --commit-ask with no skip predicate, so muted repos get prompted too."""
+def _run_commit_ask(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *extra: str
+) -> dict[str, object]:
+    """Run main in --commit-ask with the scan and the menu stubbed; return what it passed on."""
     settings_file = tmp_path / "settings.json"
     settings_file.write_text('{"folders": ["."], "commit_command": "echo hi"}', encoding="utf-8")
     seen: dict[str, object] = {}
 
-    def fake_report(statuses: object, limit: object = None, skip_reason: object = None) -> list:
-        seen["skip"] = skip_reason
+    def fake_report(
+        statuses: object, limit: object = None, skip_reason: object = None
+    ) -> list[RepoStatus]:
+        seen["skip_reason"] = skip_reason
         return []
 
-    monkeypatch.setattr(main, "scan_all", lambda settings, on_repo=None: [])
+    def fake_scan_all(settings: object, **kwargs: object) -> list[RepoStatus]:
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(main, "scan_all", fake_scan_all)
     monkeypatch.setattr(main, "report", fake_report)
     monkeypatch.setattr(main, "commit_interactive", lambda *args, **kwargs: None)
+    assert main.main(["--settings", str(settings_file), "--commit-ask", *extra]) == 0
+    return seen
 
-    argv = ["--settings", str(settings_file), "--commit-ask"]
-    assert main.main([*argv, "--all"]) == 0
-    assert seen["skip"] is None
 
-    seen.clear()
-    assert main.main(argv) == 0
+def test_commit_ask_filters_the_walk_itself(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Muted and recently-seen repos must cost no git call, not merely be labelled."""
+    seen = _run_commit_ask(monkeypatch, tmp_path)
     assert callable(seen["skip"])
+    assert callable(seen["on_clean"])
+    assert callable(seen["skip_reason"])
+
+
+def test_all_flag_drops_the_walk_filter(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """--all must leave --commit-ask unfiltered, so muted repos get scanned and prompted too."""
+    seen = _run_commit_ask(monkeypatch, tmp_path, "--all")
+    assert seen["skip"] is None
+    assert seen["skip_reason"] is None
+    # Still recorded: a repo checked under --all was checked all the same.
+    assert callable(seen["on_clean"])
+
+
+def test_checked_repo_is_recorded_by_the_walk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, store: MuteStore
+) -> None:
+    monkeypatch.setattr(main, "MuteStore", lambda *_a, **_k: store)
+    on_clean = _run_commit_ask(monkeypatch, tmp_path)["on_clean"]
+    assert callable(on_clean)
+    on_clean(Path("repo0"))
+    assert store.last_visit(_REPO) == _NOW

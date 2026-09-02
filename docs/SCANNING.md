@@ -28,6 +28,34 @@ the directory tree looking for git repositories.
 So a layout like `D:\GIT\<org>\<repo>` is handled: the walk passes through `<org>` and reports
 each `<repo>`.
 
+### Repos the walk holds back
+
+The two ask-modes (`--commit-ask`, `--pull-ask`) filter the walk itself. A repo is dropped
+**before** it is announced on the progress line and before any git command runs, when either
+rule holds:
+
+- it is **muted** and the mute has not expired, or
+- it was **already settled** within `min_visit_age` (see [SETTINGS.md](SETTINGS.md)).
+
+A repo counts as settled two ways. Either its menu was shown to you — the visit is recorded
+before the menu is drawn, so *Abort* and Ctrl-C count too — or the walk found nothing to ask
+about it: no uncommitted changes for `--commit-ask`, nothing to pull for `--pull-ask`. Repos
+further down the walk that you never reached are not recorded.
+
+Held-back repos are not listed one by one; you get a single line at the end:
+
+```
+Skipped 243 repo(s) without fetching (muted, or seen within min_visit_age). Pass --all to check them anyway.
+```
+
+`--debug` names each one. `--all` ignores both rules for that run — what the walk *records*
+is unaffected.
+
+The filter lives inside the walk rather than being applied to its result on purpose: it is
+what makes a re-run cheap, and announcing a repo the tool is about to drop would make an idle
+re-run look exactly like a full scan. Plain report mode (no ask-mode flag) never filters and
+never records — it is a passive listing, not a decision about any repo.
+
 ## What counts as "uncommitted"
 
 A repo is reported as dirty when `git status --porcelain` returns any entries. The file count is
@@ -99,6 +127,10 @@ top. Deleted files have no mtime and do not affect the ordering.
 
 Use `--limit N` to show only the `N` most recently changed repos (see
 [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md)).
+
+This ordering covers the dirty report and `--commit-ask`. `--pull-ask` has no ordering: it
+puts each repo to you the moment the fetch finds it behind, so there is never a complete list
+to sort (see [PULL_ASK.md](PULL_ASK.md)).
 
 ## Requirements
 

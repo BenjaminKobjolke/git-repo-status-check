@@ -12,7 +12,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from . import menu, upstream
+from . import menu, repo_actions
 from .constants import (
     AGE_DATE_FORMAT,
     COMMIT_HEADER,
@@ -25,9 +25,7 @@ from .constants import (
     MORE_MENU,
     MORE_MENU_TITLE,
     NO_REMOTE_CONFIGURED,
-    RENAME_PREFIX_NOT_CONFIGURED,
     REPO_PATH_TOKEN,
-    STASH_MESSAGE_FORMAT,
 )
 from .models import RepoStatus
 from .mute_store import MuteStore
@@ -46,11 +44,13 @@ def commit_interactive(
     *Commit* runs the command in the repo dir, *Skip* moves on, *Abort* stops the whole
     loop, and *More actions...* opens a submenu
     (age of files / list files / url / pull / explorer / rename / stash / mute); the pull
-    itself is ``upstream.run_pull``, shared with ``--pull-ask``.
+    the stash and the rename come from ``repo_actions``, shared with
+    ``--pull-ask``.
     The submenu's explorer entry needs ``file_explorer`` and its rename entry needs
     ``rename_prefix``; without those they report and do nothing.
-    Muting asks for a timeframe and skips the repo. Leaving a repo's menu any way but
-    Abort records a visit, which holds it back on the next run for ``min_visit_age``.
+    Muting asks for a timeframe and skips the repo. Showing a repo's menu records a visit,
+    which holds it back on the next run for ``min_visit_age`` -- Abort and Ctrl-C included,
+    since you were shown the repo either way.
     Muted, already-visited and too-recently-changed repos never reach here -- the
     caller filters them out. No-op when stdin is not a TTY
     (nothing to prompt).
@@ -62,13 +62,15 @@ def commit_interactive(
     for status in statuses:
         header = COMMIT_HEADER.format(path=status.path, count=status.dirty_count)
         print(f"\n{header}")
+        # Recorded before the menu is drawn, so Abort -- and Ctrl-C, which never returns a
+        # choice at all -- still leave the repo recorded: you were shown it, and
+        # min_visit_age keeps it quiet on the next run. Repos further down the list are
+        # untouched: you never saw those.
+        store.record_visit(str(status.path), time.time())
         choice = _ask(header, status.path, file_explorer, rename_prefix)
         if choice == "a":
             print(MENU_ABORTED)
             return
-        # Recorded before acting on the choice, so every outcome but Abort counts as a
-        # decision about this repo and min_visit_age keeps it quiet on the next run.
-        store.record_visit(str(status.path), time.time())
         if choice == "s":
             continue
         if choice == "mute":
@@ -108,7 +110,7 @@ def _more_menu(path: Path, file_explorer: str | None, rename_prefix: str | None)
         "a": lambda: _list_ages(path),
         "l": lambda: _list_files(path),
         "u": lambda: _list_remotes(path),
-        "p": lambda: upstream.run_pull(path),
+        "p": lambda: repo_actions.run_pull(path),
         "e": lambda: _open_explorer(file_explorer, path),
     }
     while True:
@@ -119,12 +121,12 @@ def _more_menu(path: Path, file_explorer: str | None, rename_prefix: str | None)
             menu.pause()
             continue
         if choice == "r":
-            if _rename_repo(path, rename_prefix):
+            if repo_actions.run_rename(path, rename_prefix):
                 return "skip"
             menu.pause()
             continue
         if choice == "s":
-            if _run_stash(path):
+            if repo_actions.run_stash(path):
                 return "skip"
             menu.pause()
             continue
@@ -189,23 +191,6 @@ def _list_remotes(path: Path) -> None:
         print("  " + "  ".join(part.strip() for part in row))
 
 
-def _run_stash(path: Path) -> bool:
-    """Stash the repo's changes (including untracked) under a dated tool message.
-
-    ``-u`` so the stash also clears untracked files — otherwise the repo stays dirty in the
-    next scan and the prompt comes straight back. Returns True when the stash succeeded.
-    """
-    message = datetime.now(tz=UTC).astimezone().strftime(STASH_MESSAGE_FORMAT)
-    result = subprocess.run(
-        ("git", "-C", str(path), "stash", "push", "-u", "-m", message), check=False
-    )
-    if result.returncode != 0:
-        print(f"  FAILED (stash, exit {result.returncode}): {path}")
-        return False
-    print(f"  Stashed: {message}")
-    return True
-
-
 def _run_commit(command: str, status: RepoStatus) -> None:
     """Run the commit command in the repo dir with live output; report the result."""
     result = subprocess.run(command, shell=True, cwd=str(status.path), check=False)
@@ -213,31 +198,6 @@ def _run_commit(command: str, status: RepoStatus) -> None:
         print(f"  OK: {status.path}")
     else:
         print(f"  FAILED (exit {result.returncode}): {status.path}")
-
-
-def _rename_repo(path: Path, prefix: str | None) -> bool:
-    """Rename the repo folder to ``<prefix><name>``; return True when it was renamed.
-
-    The prefix is meant to match one in ``ignore_prefixes`` so the archived folder drops
-    out of the next scan. Refuses rather than clobbers when the target already exists.
-    """
-    if not prefix:
-        print(RENAME_PREFIX_NOT_CONFIGURED)
-        return False
-    if path.name.startswith(prefix):
-        print(f"  Already prefixed: {path.name}")
-        return False
-    target = path.with_name(prefix + path.name)
-    if target.exists():
-        print(f"  FAILED (rename): {target} already exists.")
-        return False
-    try:
-        path.rename(target)
-    except OSError as exc:
-        print(f"  FAILED (rename): {exc}")
-        return False
-    print(f"  Renamed: {path.name} -> {target.name}")
-    return True
 
 
 def _open_explorer(command: str | None, path: Path) -> None:

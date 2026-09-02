@@ -42,12 +42,12 @@ the `N` most recently changed repos.
 - The summary line still reports the true total and notes the truncation:
   `Summary: 61 dirty repo(s) (showing 10)`.
 - `N` larger than the number of dirty repos prints all of them with no `(showing …)` note.
-- With `--commit-ask`, `N` counts only repos that will actually be prompted for. Muted
-  repos and repos below `min_modified_age` are still listed (labelled, see below) but do
-  not use up a slot, so `--limit 10` always yields 10 repos to act on:
+- With `--commit-ask`, `N` counts only repos that will actually be prompted for. Repos
+  below `min_modified_age` are still listed (labelled, see below) but do not use up a
+  slot, so `--limit 10` always yields 10 repos to act on. Muted and already-settled repos
+  are not scanned at all, so they never reach this listing:
 
   ```
-  D:\wamp64\www\naou  -  5487 uncommitted files  [muted for 2 days]
   D:\GIT\sps-station-client  -  15 uncommitted files  [changed 12 minutes ago]
   D:\GIT\some\repo  -  4 uncommitted files
   ```
@@ -70,9 +70,10 @@ with the arrow keys, confirm with Enter, leave with Ctrl-C — nothing is typed.
     file is listed with its date.
   - *List changed files* — list the changed files in this repo — the same set that was counted, so
     line-ending-only changes are absent — then show the submenu again.
-  - *Pull* — run `git pull` in this repo (live output), then show the submenu again. Use it to
-    fast-forward before committing. A plain pull — if it can't proceed (e.g. local
-    changes conflict) it fails loudly and nothing else is touched.
+  - *Pull* — run `git pull --no-edit` in this repo (live output), then show the submenu again.
+    Use it to fast-forward before committing. A plain pull — if it can't proceed (e.g. local
+    changes conflict) it fails loudly and nothing else is touched. `--no-edit` keeps a merge
+    commit from opening the git editor over the menu.
   - *Open in file explorer* — open this repo in the file manager configured as `file_explorer`, launched
     detached so the prompt returns right away, then show the submenu again.
   - *Rename repo* — rename this repo's folder to `<rename_prefix><name>` (e.g. `_old_project`), so
@@ -97,12 +98,16 @@ needs `rename_prefix`, but both settings are optional — without them only thos
 unavailable. Needs an interactive terminal — with piped/redirected stdin it prints a
 notice and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
 
-Muted repos and repos whose newest changed file is younger than the optional
-`min_modified_age` setting are not prompted for. They still appear in the report with a
-`[muted for 2 days]` / `[changed 12 minutes ago]` label, and they do not count against
-`--limit`. Pass `--all` to prompt for them anyway. See [SETTINGS.md](SETTINGS.md).
+Muted repos, and repos already settled within `min_visit_age` (you answered their menu, or
+a previous scan found nothing to commit), are dropped **before** the scan: they cost no git
+call and are reported as a single `Skipped N repo(s) without scanning` line (`--debug` names
+each one). Repos whose newest changed file is younger than the optional `min_modified_age`
+setting are still scanned and listed with a `[changed 12 minutes ago]` label, just not
+prompted for, and do not count against `--limit`. Pass `--all` to prompt for all of them
+anyway. See [SETTINGS.md](SETTINGS.md).
 
-Mutes are stored in a `mutes.db` SQLite file in the project root (gitignored, machine-local).
+Mutes and visits are stored in a `mutes.db` SQLite file in the project root (gitignored,
+machine-local).
 
 ```bat
 uv run python main.py --commit-ask
@@ -110,16 +115,18 @@ uv run python main.py --commit-ask
 
 ## `--pull-ask`
 
-Fetch every repo under the configured folders and show a menu — **Pull / Skip / Mute repo /
-Abort** — for each one that is *behind* its upstream, most stale first. Repos with no
-tracking branch (detached HEAD, unpushed branch, no remote) are skipped silently.
+Fetch every repo under the configured folders and show a menu — **Pull / Stash changes and
+pull / Rename repo / Skip / Mute repo / Abort** — for each one that is *behind* its upstream, as the walk
+finds it. Repos with no tracking branch (detached HEAD, unpushed branch, no remote) are
+skipped silently.
 
 This is the opposite question from the rest of the tool: `--commit-ask` is about local
 changes you have not pushed, `--pull-ask` is about remote changes you have not pulled. It
 does its own walk because it has to fetch, and it needs no `commit_command`.
 
 Repos it should not re-check are dropped **before** the fetch, not after: muted ones, and
-ones whose menu you already saw within `min_visit_age` (default `1h`). Those cost no network
+ones already settled within `min_visit_age` (default `1h`) — either because you answered
+their menu, or because a previous fetch found nothing to pull. Those cost no network
 at all and are reported as a single `Skipped N repo(s) without fetching` line — which is what
 makes a re-run take seconds instead of minutes. `--debug` names each skipped repo.
 
@@ -133,19 +140,31 @@ uv run python main.py --pull-ask
 ```
 
 ```
-D:\GIT\some\repo  -  4 commit(s) behind origin/main
+D:\GIT\some\repo  -  4 commit(s) behind origin/main  -  3 uncommitted
 
  > Pull
+   Stash changes and pull
+   Rename repo
    Skip
    Mute repo
    Abort
 ```
 
+*Stash changes and pull* is offered only on a repo with local changes: it runs the same
+`git stash push -u` as the `--commit-ask` submenu, then pulls. A failed stash cancels the
+pull. *Rename repo* is offered only when `rename_prefix` is configured: same rename as that
+submenu (`<rename_prefix><name>`), and the renamed repo is not pulled.
+
+A failed pull (or a failed stash) shows this same menu again for the same repo instead of
+moving on — the usual cause is local changes in the way, and *Stash changes and pull* is the
+answer to it. *Skip* leaves the repo alone.
+
 ## `--all`
 
-Ignore every skip filter for this run: `--commit-ask` prompts for all dirty repos, including
-muted ones, ones whose menu you just saw (`min_visit_age`), and ones changed within
-`min_modified_age`. Nothing is un-muted — the stored mutes are simply not honored this run,
+Ignore every skip filter for this run: `--commit-ask` scans and prompts for all repos,
+including muted ones, ones settled within `min_visit_age`, and ones changed within
+`min_modified_age`. Repos it checks are still recorded — `--all` changes what is *honored*,
+not what is written. Nothing is un-muted — the stored mutes are simply not honored this run,
 so the next run without `--all` skips them again.
 
 With `--pull-ask` it likewise ignores that mode's own mutes and visits, so every repo is

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from git_repo_status_check.mute_store import MuteStore, PullMute, muted_label
+from git_repo_status_check.mute_store import MuteStore, PullMute, ScanSkip, muted_label
+
+_REPO_PATH = Path("D:/GIT/foo")
+_REPO = str(_REPO_PATH)
 
 
 def test_list_active_excludes_expired_and_sorts_by_expiry(store: MuteStore) -> None:
@@ -88,3 +91,50 @@ def test_muted_label_reports_the_remaining_time(store: MuteStore) -> None:
     store.mute("D:/GIT/foo", muted_until=100.0 + 2 * 86400)
     assert muted_label(store, "D:/GIT/foo", now=100.0) == "muted for 2 days"
     assert muted_label(store, "D:/GIT/unmuted", now=100.0) is None
+
+
+def _scan_skip(store: MuteStore, min_visit_age: float | None = 3600.0) -> ScanSkip:
+    return ScanSkip(store, min_visit_age, now=10_000.0, work="scanning")
+
+
+def test_scan_skip_names_a_muted_repo(store: MuteStore) -> None:
+    store.mute(_REPO, muted_until=10_000.0 + 2 * 86400.0)
+    assert _scan_skip(store)(_REPO_PATH) == "muted for 2 days"
+
+
+def test_scan_skip_names_a_recently_visited_repo(store: MuteStore) -> None:
+    store.record_visit(_REPO, visited_at=10_000.0 - 600.0)
+    assert _scan_skip(store)(_REPO_PATH) == "seen 10 minutes ago"
+
+
+def test_scan_skip_mute_wins_over_a_fresh_visit(store: MuteStore) -> None:
+    """An explicit mute is the user's own decision, so its label takes precedence."""
+    store.mute(_REPO, muted_until=10_000.0 + 2 * 86400.0)
+    store.record_visit(_REPO, visited_at=10_000.0)
+    assert _scan_skip(store)(_REPO_PATH) == "muted for 2 days"
+
+
+def test_scan_skip_passes_a_visit_older_than_the_window(store: MuteStore) -> None:
+    store.record_visit(_REPO, visited_at=10_000.0 - 7200.0)
+    assert _scan_skip(store)(_REPO_PATH) is None
+
+
+def test_scan_skip_ignores_visits_when_min_visit_age_is_off(store: MuteStore) -> None:
+    store.record_visit(_REPO, visited_at=10_000.0)
+    assert _scan_skip(store, min_visit_age=None)(_REPO_PATH) is None
+
+
+def test_scan_skip_counts_only_the_repos_it_held_back(store: MuteStore) -> None:
+    store.record_visit(_REPO, visited_at=10_000.0)
+    skip = _scan_skip(store)
+    skip(_REPO_PATH)
+    skip(Path("D:/GIT/never-seen"))
+    assert skip.count == 1
+    assert skip.summary() == (
+        "\nSkipped 1 repo(s) without scanning (muted, or seen within min_visit_age). "
+        "Pass --all to check them anyway."
+    )
+
+
+def test_scan_skip_summary_is_none_when_nothing_was_held_back(store: MuteStore) -> None:
+    assert _scan_skip(store).summary() is None

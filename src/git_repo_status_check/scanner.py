@@ -240,24 +240,54 @@ def scan_repo(repo: Path) -> list[RepoStatus]:
     return statuses
 
 
-def walk_repos(settings: Settings, on_repo: Callable[[Path], None] | None = None) -> Iterator[Path]:
+def walk_repos(
+    settings: Settings,
+    on_repo: Callable[[Path], None] | None = None,
+    skip: Callable[[Path], str | None] | None = None,
+) -> Iterator[Path]:
     """Yield every git repo under every configured root, announcing each before it is used.
 
     Every mode visits exactly the same repos and differs only in what it then asks about
     one, so the walk itself — the roots, ``ignore_prefixes``, the progress callback — is
     defined here rather than repeated per mode. ``on_repo`` is called with each repo path
     just before it is yielded (progress display).
+
+    ``skip`` (see ``mute_store.ScanSkip``) is consulted **before** ``on_repo``, so a repo
+    this run holds back is not announced either. Announcing it would make a re-run look
+    exactly like a full scan while it is in fact doing nothing — the saved work is invisible
+    otherwise, and the skipped count at the end is the only sign of it.
     """
     for root in settings.folders:
         AppLogger.debug(f"Scanning {root}")
         for repo in find_repos(root, settings.ignore_prefixes):
+            if skip is not None and skip(repo) is not None:
+                continue
             if on_repo is not None:
                 on_repo(repo)
             yield repo
 
 
-def scan_all(settings: Settings, on_repo: Callable[[Path], None] | None = None) -> list[RepoStatus]:
-    """Scan every configured root; return dirty repos + submodules, newest change first."""
-    results = [status for repo in walk_repos(settings, on_repo) for status in scan_repo(repo)]
+def scan_all(
+    settings: Settings,
+    on_repo: Callable[[Path], None] | None = None,
+    skip: Callable[[Path], str | None] | None = None,
+    on_clean: Callable[[Path], None] | None = None,
+) -> list[RepoStatus]:
+    """Scan every configured root; return dirty repos + submodules, newest change first.
+
+    ``skip`` is handed to ``walk_repos``, which drops a held-back repo before it is even
+    announced: it costs no git call and no progress line this run.
+
+    ``on_clean`` is called for a repo that turned out to have nothing to commit -- it was
+    checked, and there is nothing left to ask about it, which is what ``--commit-ask``
+    records so ``min_visit_age`` can hold it back next time. A repo with changes is
+    deliberately left out: it is only settled once its menu is answered.
+    """
+    results: list[RepoStatus] = []
+    for repo in walk_repos(settings, on_repo, skip):
+        statuses = scan_repo(repo)
+        if not statuses and on_clean is not None:
+            on_clean(repo)
+        results.extend(statuses)
     results.sort(key=lambda s: s.latest_change, reverse=True)
     return results

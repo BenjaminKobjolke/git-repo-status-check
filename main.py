@@ -18,12 +18,13 @@ from git_repo_status_check.constants import (
     MUTED_SECTION_COMMIT,
     MUTED_SECTION_PULL,
     SKIP_LABEL_RECENT,
+    SKIPPED_WORK_SCANNING,
 )
 from git_repo_status_check.duration import format_duration
 from git_repo_status_check.line_endings import fix_interactive
 from git_repo_status_check.models import RepoStatus
-from git_repo_status_check.mute_store import MuteStore, PullMute, PullVisit, skip_reason
-from git_repo_status_check.reporter import clear_progress, progress, report
+from git_repo_status_check.mute_store import MuteStore, PullMute, PullVisit, ScanSkip
+from git_repo_status_check.reporter import clear_progress, progress, report, report_skipped
 from git_repo_status_check.scanner import scan_all
 from git_repo_status_check.settings import Settings, SettingsError, resolve_settings_path
 from git_repo_status_check.upstream import pull_interactive
@@ -100,12 +101,33 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    # Only --commit-ask acts per repo, so only it needs the skipped ones kept out of --limit.
-    # --all drops the predicate entirely, which is what makes every repo actionable again.
-    skip_reason = build_skip_reason(store, settings) if args.commit_ask and not args.all else None
-    statuses = scan_all(settings, on_repo=progress)
+    # Mutes and visits filter the walk itself, so a held-back repo costs no git call --
+    # only --commit-ask acts per repo, so only it filters. --all drops both predicates,
+    # which is what makes every repo actionable again.
+    now = time.time()
+    ask = args.commit_ask
+    skip = (
+        ScanSkip(store, settings.min_visit_age, now, SKIPPED_WORK_SCANNING)
+        if ask and not args.all
+        else None
+    )
+
+    def record_checked(repo: Path) -> None:
+        """Nothing to commit here, so the walk itself settled the repo (see scan_all)."""
+        store.record_visit(str(repo), now)
+
+    statuses = scan_all(
+        settings,
+        on_repo=progress,
+        skip=skip,
+        # Recorded even under --all: the repo was checked all the same. Plain report mode
+        # records nothing -- it is a passive listing, not a decision about any repo.
+        on_clean=record_checked if ask else None,
+    )
     clear_progress()
+    skip_reason = build_skip_reason(settings) if ask and not args.all else None
     shown = report(statuses, limit=args.limit, skip_reason=skip_reason)
+    report_skipped(skip)
 
     if args.commit_ask and settings.commit_command:
         commit_interactive(
@@ -118,22 +140,17 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def build_skip_reason(store: MuteStore, settings: Settings) -> Callable[[RepoStatus], str | None]:
+def build_skip_reason(settings: Settings) -> Callable[[RepoStatus], str | None]:
     """Return a predicate labelling repos --commit-ask will not prompt for (None = actionable).
 
-    Reasons are checked most-deliberate first, so the label names the strongest one: an
-    explicit mute, then a menu you already saw (both shared with ``--pull-ask`` via
-    ``mute_store.skip_reason``), then a file someone may still be editing -- the one test
-    only this mode has.
+    Only the file-someone-may-still-be-editing test lives here -- the one reason that needs
+    the scan's own result. Mutes and menus you already saw are applied a level earlier, at
+    the walk (``mute_store.ScanSkip``), so a repo held back for either never reaches this.
     """
 
     def build(status: RepoStatus) -> str | None:
-        now = time.time()
-        shared = skip_reason(store, str(status.path), now, settings.min_visit_age)
-        if shared is not None:
-            return shared
         # latest_change is 0.0 when no changed file had a readable mtime -- not "1970".
-        age = now - status.latest_change
+        age = time.time() - status.latest_change
         min_modified_age = settings.min_modified_age
         if min_modified_age is not None and status.latest_change > 0 and age < min_modified_age:
             return SKIP_LABEL_RECENT.format(duration=format_duration(age))

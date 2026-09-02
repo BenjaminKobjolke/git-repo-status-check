@@ -30,8 +30,8 @@ optional `commit_command` key used by `--commit-ask`, an optional `file_explorer
 for its `e` menu action, an optional `rename_prefix` key for its `r` menu action, an
 optional `ignore_prefixes` key that skips folders by name prefix during scanning, and an
 optional `min_modified_age` key that holds `--commit-ask` back from freshly-touched repos,
-and an optional `min_visit_age` key that stops `--commit-ask` re-prompting for a repo you
-just looked at.
+and an optional `min_visit_age` key that stops either ask-mode re-checking a repo it just
+settled.
 
 ```json
 {
@@ -95,10 +95,13 @@ just looked at.
 
 ### `rename_prefix`
 
-- Type: string. Optional; omit it if you don't use the `--commit-ask` *Rename repo* action.
-- The prefix prepended to a repo's **folder name** when you choose *Rename repo* in the `--commit-ask`
-  **more** submenu (see [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md)):
+- Type: string. Optional; omit it if you don't use the *Rename repo* action.
+- The prefix prepended to a repo's **folder name** when you choose *Rename repo* — in the
+  `--commit-ask` **more** submenu (see [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md)) or on the
+  `--pull-ask` menu (see [PULL_ASK.md](PULL_ASK.md)):
   `D:\GIT\project` becomes `D:\GIT\_old_project`.
+- `--pull-ask` hides the entry entirely when this is unset, since there would be nothing to
+  rename to.
 - Set it to one of your `ignore_prefixes` entries and the renamed folder is pruned from the
   next scan — that is the point of the action: archive a repo you no longer want prompted for.
 - Only the folder is renamed; nothing inside the repo is touched, and the rename is undone by
@@ -107,7 +110,7 @@ just looked at.
   when the target name already exists, or when the OS rejects the rename (e.g. a file in the
   repo is open). Nothing is overwritten.
 - If present it must be a non-empty string, or settings validation fails. If it is absent and
-  you choose *Rename repo*, the tool says so and the loop carries on.
+  you choose *Rename repo* in the `--commit-ask` submenu, the tool says so and the loop carries on.
 
 ```json
 {
@@ -163,23 +166,20 @@ just looked at.
   optional key, this one is on unless you turn it off.
 - Same accepted forms as `min_modified_age`: a positive integer plus `h` / `d` / `w` /
   `m` (= 30 days). Examples: `"30m"` is *30 months*, not 30 minutes — there is no minute unit.
-- Whenever an ask-mode shows a repo's menu and you leave it by any route except *Abort*, the
-  tool records the visit. For this long afterwards that repo is not prompted for again, so
-  re-running the tool a few minutes later only covers the repos you have not already decided
-  about. *Abort* records nothing — you did not decide about that repo.
-- **Affects `--commit-ask` and `--pull-ask`, but they act on it differently**, because the
-  cost of a repo differs between them:
-  - `--commit-ask` — the repo is still scanned and still listed, labelled
-    `[seen 10 minutes ago]`; it is only not prompted for, and does not count against
-    `--limit`. Reading `git status` is cheap.
-  - `--pull-ask` — the repo is dropped **before** its `git fetch`, so it is not listed at
-    all; you get one `Skipped N repo(s) without fetching` line instead. The fetch is the
-    entire cost of that mode, so skipping it is the point (see [PULL_ASK.md](PULL_ASK.md)).
+- A repo is recorded as *settled* two ways. Either its menu was shown to you (the visit is
+  written before the menu is drawn, so *Abort* and Ctrl-C count too; repos further down the
+  walk that you never reached do not), or the walk found nothing to ask about it: no uncommitted changes for `--commit-ask`, nothing to pull for
+  `--pull-ask`. For this long afterwards that repo is left alone, so re-running the tool a
+  few minutes later only covers what you have not already dealt with.
+- **Affects `--commit-ask` and `--pull-ask` the same way**: a settled repo is dropped
+  **before** the git call, so it is not listed at all. You get one
+  `Skipped N repo(s) without scanning` / `without fetching` line instead, and `--debug`
+  names each skipped repo. That is where the runtime of a re-run goes, in both modes.
 - Set it to `null` to switch the behaviour off and be prompted for every repo every run.
   `"0h"` is **not** accepted (durations must be positive) — `null` is the off switch.
 - Visits are stored per repo path in `mutes.db` next to `main.py`, in tables separate from
   the mutes: they never show up in `--list-muted`, and an explicit mute always wins the
-  label. Each mode has its own visit table, so answering for a repo in one does not silence
+  reason. Each mode has its own visit table, so answering for a repo in one does not silence
   it in the other.
 - If present it must parse as a duration or be `null`, or settings validation fails.
 

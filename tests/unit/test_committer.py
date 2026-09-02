@@ -79,7 +79,7 @@ def test_pull_runs_git_pull_and_reprompts(
     # subprocess.run fires twice: once for the pull, once for the commit command.
     assert mock_run.call_count == 2
     pull_args = mock_run.call_args_list[0].args[0]
-    assert tuple(pull_args) == ("git", "-C", str(Path("repo0")), "pull")
+    assert tuple(pull_args) == ("git", "-C", str(Path("repo0")), "pull", "--no-edit")
 
 
 def test_more_back_returns_to_top(

@@ -11,17 +11,14 @@ User-facing I/O (menus via menu.py, print) like committer.py, not logging.
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import menu
-from .app_logger import AppLogger
 from .constants import (
-    DEBUG_PULL_SKIPPED,
     GIT_BEHIND_AHEAD,
     GIT_BEHIND_AHEAD_SEPARATOR,
     GIT_FETCH,
@@ -32,12 +29,15 @@ from .constants import (
     PULL_HEADER,
     PULL_HEADER_DIRTY,
     PULL_MENU,
+    PULL_MENU_RENAME,
+    PULL_MENU_STASH,
     PULL_NEEDS_TTY,
     PULL_NONE_BEHIND,
-    PULL_SKIPPED_SUMMARY,
+    SKIPPED_WORK_FETCHING,
 )
-from .mute_store import MuteStore, skip_reason
-from .reporter import clear_progress, progress
+from .mute_store import MuteStore, ScanSkip
+from .repo_actions import run_pull, run_rename, run_stash
+from .reporter import clear_progress, progress, report_skipped
 from .scanner import dirty_info, run_git, walk_repos
 from .settings import Settings
 
@@ -97,63 +97,104 @@ def _behind_count(out: str | None) -> int:
         return 0
 
 
-def scan_upstream(
+def walk_upstream(
     settings: Settings,
     on_repo: Callable[[Path], None] | None = None,
     skip: Callable[[Path], str | None] | None = None,
-) -> list[RepoUpstream]:
-    """Walk every configured root and return the repos behind upstream, most stale first.
+    on_clean: Callable[[Path], None] | None = None,
+) -> Iterator[RepoUpstream]:
+    """Yield each repo found behind its upstream, the moment the walk reaches it.
+
+    A generator, not a list, because the walk is the slow part: over a few hundred repos it
+    is minutes of ``git fetch``, and collecting them all before the first question means an
+    interrupted run answers nothing at all. Yielding hands each repo to the caller while the
+    rest are still unfetched. The cost is ordering -- repos arrive in walk order, since
+    sorting by how far behind they are would need the whole walk finished first.
 
     ``on_repo`` is called with each repo path just before it is fetched (progress display);
     a fetch is the slowest thing this tool does, so the walk is worth narrating.
 
-    ``skip`` is consulted **before** the fetch: a repo it names a reason for costs no
-    network at all. That is the point of it — held-back repos are the majority on a re-run,
-    and fetching them only to drop them again is the whole runtime of the mode.
+    ``skip`` is handed to ``walk_repos``, which drops a held-back repo before the fetch and
+    before the progress line. That is the point of it — held-back repos are the majority on
+    a re-run, and fetching them only to drop them again is the whole runtime of the mode.
+
+    ``on_clean`` is called for every repo the fetch settled: up to date, but also the ones
+    the question does not apply to (no tracking branch, detached HEAD, unreachable remote).
+    Nothing will be asked about them, so recording them here is what stops the next run
+    from paying for the same fetch again.
     """
-    results: list[RepoUpstream] = []
-    for repo in walk_repos(settings, on_repo):
-        if skip is not None and skip(repo) is not None:
-            continue
+    for repo in walk_repos(settings, on_repo, skip):
         found = measure(repo)
-        if found is not None:
-            results.append(found)
-    results.sort(key=lambda r: r.behind, reverse=True)
-    return results
+        if found is None:
+            if on_clean is not None:
+                on_clean(repo)
+            continue
+        yield found
 
 
-def report_upstream(results: list[RepoUpstream]) -> None:
-    """Print each repo that is behind. Everything listed here will be prompted for.
+def pull_menu(dirty_count: int, rename_prefix: str | None = None) -> tuple[tuple[str, str], ...]:
+    """``PULL_MENU`` with the stash and rename entries spliced in after *Pull*, when they apply.
 
-    No skip labels, unlike ``reporter.report``: repos this run holds back are filtered out
-    before the fetch, so there is no state to report about them.
+    Built per repo rather than being a constant: stashing is only useful — and only works —
+    on a repo with local changes, and renaming needs a ``rename_prefix`` to rename to. An
+    entry that cannot work is left out rather than shown and failing.
     """
-    if not results:
-        print(PULL_NONE_BEHIND)
-        return
-    for found in results:
-        print(found.header())
+    pull, *rest = PULL_MENU
+    extra: list[tuple[str, str]] = []
+    if dirty_count:
+        extra.append(PULL_MENU_STASH)
+    if rename_prefix:
+        extra.append(PULL_MENU_RENAME)
+    return (pull, *extra, *rest)
 
 
-def run_pull(path: Path) -> None:
-    """Run ``git pull`` in the repo dir with live output; report the result.
+def prompt_repo(found: RepoUpstream, store: MuteStore, rename_prefix: str | None = None) -> bool:
+    """Ask about one repo until it is settled; False when the user chose Abort.
 
-    Streams (not captured like ``scanner.run_git``) so the user sees fetch/merge progress.
-    Plain pull — failures surface as-is. The single pull in the codebase: the
-    ``--commit-ask`` submenu calls this one too.
+    The menu comes back after a failed pull (or a failed stash, or a refused rename) instead
+    of the walk moving on: the usual failure is local changes standing in the way, and the
+    answer to it — stash, then pull — is an entry on the same menu.
     """
-    result = subprocess.run(("git", "-C", str(path), "pull"), check=False)
-    if result.returncode == 0:
-        print(f"  OK (pull): {path}")
-    else:
-        print(f"  FAILED (pull, exit {result.returncode}): {path}")
+    dirty = found.dirty_count
+    while True:
+        choice = menu.choose(pull_menu(dirty, rename_prefix), found.header())
+        if choice == "a":
+            print(MENU_ABORTED)
+            return False
+        if choice == "s":
+            return True
+        if choice == "m":
+            store.mute(str(found.path), time.time() + menu.ask_timeframe())
+            return True
+        # Renamed out of the way: there is no longer a repo at this path to pull into.
+        if choice == "r":
+            if run_rename(found.path, rename_prefix):
+                return True
+            menu.pause()
+            continue
+        if choice == "t":
+            if not run_stash(found.path):
+                menu.pause()
+                continue
+            # Stashed: the tree is clean, so the stash entry drops off the retry menu.
+            dirty = 0
+        pulled = run_pull(found.path)
+        # The next menu repaints the whole screen, so hold the pull output until read.
+        menu.pause()
+        if pulled:
+            return True
 
 
 def pull_interactive(settings: Settings, store: MuteStore, prompt_all: bool = False) -> None:
-    """Fetch the repos this run cares about, report the ones behind, and prompt for each.
+    """Walk the repos this run cares about, asking about each one behind as it is found.
+
+    The menu comes up mid-walk rather than after it: fetching a few hundred repos takes
+    minutes, and a run interrupted before the questions started used to leave nothing
+    decided and nothing recorded.
 
     ``prompt_all`` ignores the stored mutes and visits for this run (``--all``), so every
-    repo is fetched again. No-op when stdin is not a TTY — there is nothing to prompt.
+    repo is fetched again — what the walk *records* is unaffected. No-op when stdin is not
+    a TTY — there is nothing to prompt.
     """
     if not sys.stdin.isatty():
         print(PULL_NEEDS_TTY)
@@ -163,37 +204,29 @@ def pull_interactive(settings: Settings, store: MuteStore, prompt_all: bool = Fa
     os.environ[GIT_TERMINAL_PROMPT_ENV] = GIT_TERMINAL_PROMPT_OFF
 
     now = time.time()
-    skipped = 0
-
-    def skip(repo: Path) -> str | None:
-        nonlocal skipped
-        reason = skip_reason(store, str(repo), now, settings.min_visit_age)
-        if reason is not None:
-            skipped += 1
-            AppLogger.debug(DEBUG_PULL_SKIPPED.format(repo=repo, reason=reason))
-        return reason
-
-    results = scan_upstream(settings, on_repo=progress, skip=None if prompt_all else skip)
-    clear_progress()
-    report_upstream(results)
-    # A count, not a line per repo: on a re-run the held-back repos are most of the walk.
-    if skipped:
-        print(PULL_SKIPPED_SUMMARY.format(count=skipped))
-
-    for found in results:
+    skip = (
+        None if prompt_all else ScanSkip(store, settings.min_visit_age, now, SKIPPED_WORK_FETCHING)
+    )
+    found_any = False
+    for found in walk_upstream(
+        settings,
+        on_repo=progress,
+        skip=skip,
+        # Up to date is a decision the fetch already made, so it counts as a visit even
+        # under --all and even if the user aborts the menus below.
+        on_clean=lambda repo: store.record_visit(str(repo), now),
+    ):
+        found_any = True
+        clear_progress()
         print(f"\n{found.header()}")
-        choice = menu.choose(PULL_MENU, found.header())
-        if choice == "a":
-            print(MENU_ABORTED)
-            return
-        # Recorded before acting, so every outcome but Abort counts as a decision about this
-        # repo and min_visit_age keeps it out of the next run's fetch entirely.
+        # Recorded before the menu is drawn, so Abort -- and Ctrl-C, which never returns a
+        # choice at all -- still leave the repo recorded: you were shown it, and
+        # min_visit_age keeps it out of the next run's fetch.
         store.record_visit(str(found.path), time.time())
-        if choice == "s":
-            continue
-        if choice == "m":
-            store.mute(str(found.path), time.time() + menu.ask_timeframe())
-            continue
-        run_pull(found.path)
-        # The next menu repaints the whole screen, so hold the pull output until read.
-        menu.pause()
+        if not prompt_repo(found, store, settings.rename_prefix):
+            break
+
+    clear_progress()
+    if not found_any:
+        print(PULL_NONE_BEHIND)
+    report_skipped(skip)

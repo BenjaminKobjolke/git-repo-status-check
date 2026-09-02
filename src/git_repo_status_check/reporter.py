@@ -7,6 +7,7 @@ import sys
 from collections.abc import Callable
 
 from .models import RepoStatus
+from .mute_store import ScanSkip
 
 
 def progress(path: object) -> None:
@@ -24,6 +25,17 @@ def clear_progress() -> None:
         return
     width = shutil.get_terminal_size().columns
     print(f"\r{'':<{width - 1}}\r", end="", file=sys.stderr, flush=True)
+
+
+def report_skipped(skip: ScanSkip | None) -> None:
+    """Print what a finished walk held back; nothing when the filter was off or idle.
+
+    Both ask-modes end their walk with this line, so the "only if there were any" test lives
+    here rather than at each call site.
+    """
+    summary = skip.summary() if skip is not None else None
+    if summary is not None:
+        print(summary)
 
 
 def report(

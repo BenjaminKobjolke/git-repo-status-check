@@ -2,8 +2,9 @@
 
 A repo is identified by ``str(RepoStatus.path)``. Tables hang off that key: a mute row
 records the epoch second until which the repo should be silently skipped, and a visit row
-records when its menu was last shown (so a re-run does not ask again straight away). Time is passed in by callers so this module stays deterministic and easy
-to test.
+records when the repo was last settled -- its menu answered, or the walk finding nothing to
+ask about -- so a re-run leaves it alone for ``min_visit_age``. Time is passed in by callers
+so this module stays deterministic and easy to test.
 
 Each ask-mode gets its own mute and visit tables rather than one table with a "kind"
 column: a column cannot be added to an existing ``mutes.db`` by ``create_all``, whereas a
@@ -19,7 +20,13 @@ from pathlib import Path
 from sqlalchemy import Float, String, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-from .constants import SKIP_LABEL_MUTED, SKIP_LABEL_VISITED
+from .app_logger import AppLogger
+from .constants import (
+    DEBUG_SKIPPED_REPO,
+    SKIP_LABEL_MUTED,
+    SKIP_LABEL_VISITED,
+    SKIPPED_SUMMARY,
+)
 from .duration import format_duration
 
 
@@ -174,3 +181,41 @@ def skip_reason(
     if since_visit >= min_visit_age:
         return None
     return SKIP_LABEL_VISITED.format(duration=format_duration(since_visit))
+
+
+class ScanSkip:
+    """Walk-level filter for an ask-mode: name the repos it leaves alone, and count them.
+
+    Both modes ask the same two questions before touching a repo (muted? seen within
+    ``min_visit_age``?) and both then report a count instead of a line per repo, so the
+    predicate, its counter and its summary line are written here once rather than per mode.
+    Passed to ``scanner.scan_all`` / ``upstream.walk_upstream`` as their ``skip``, which is
+    what makes a held-back repo cost no git call at all.
+
+    ``now`` is snapshotted for the whole walk by the caller: a long fetch must not let a
+    repo age past the window halfway through. ``work`` is what the skip saved, for the
+    summary -- fetching for ``--pull-ask``, scanning for ``--commit-ask``.
+    """
+
+    def __init__(
+        self, store: MuteStore, min_visit_age: float | None, now: float, work: str
+    ) -> None:
+        self._store = store
+        self._min_visit_age = min_visit_age
+        self._now = now
+        self._work = work
+        self.count = 0
+
+    def __call__(self, repo: Path) -> str | None:
+        """The reason ``repo`` is held back this run, or None to go ahead and check it."""
+        reason = skip_reason(self._store, str(repo), self._now, self._min_visit_age)
+        if reason is not None:
+            self.count += 1
+            AppLogger.debug(DEBUG_SKIPPED_REPO.format(repo=repo, reason=reason))
+        return reason
+
+    def summary(self) -> str | None:
+        """The one-line count for the end of the walk; None when nothing was held back."""
+        if not self.count:
+            return None
+        return SKIPPED_SUMMARY.format(count=self.count, work=self._work)

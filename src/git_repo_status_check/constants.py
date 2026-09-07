@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+
 # Marker dirs / files.
 GIT_DIR = ".git"
 GITMODULES_FILE = ".gitmodules"
@@ -41,6 +43,10 @@ RENAME_COPY_CODES: frozenset[str] = frozenset({"R", "C"})
 # surrogateescape round-trips anything undecodable instead of failing.
 GIT_OUTPUT_ENCODING = "utf-8"
 GIT_OUTPUT_ERRORS = "surrogateescape"
+
+# win32 only (0 elsewhere): a console-less parent (pythonw) otherwise gets a new console
+# window for every console child -- one cmd flash per git call.
+SUBPROCESS_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 # Porcelain XY codes that can be pure line-ending noise. Every other code (untracked, added,
 # deleted, renamed) is a real change and is never filtered.

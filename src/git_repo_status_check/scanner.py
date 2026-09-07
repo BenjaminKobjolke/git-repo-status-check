@@ -21,6 +21,7 @@ from .constants import (
     NOISE_DIRS,
     NUL,
     RENAME_COPY_CODES,
+    SUBPROCESS_NO_WINDOW,
 )
 from .models import ChangedFile, RepoStatus
 from .settings import Settings
@@ -51,9 +52,8 @@ def run_git(
     Output is decoded as UTF-8 (git's own path encoding) rather than by the process
     locale, which raises on ordinary non-ASCII names under ``-z``.
 
-    ``quiet`` logs a failure at debug level instead of warning. Some callers ask questions
-    a repo is allowed to have no answer to -- ``--pull-ask`` queries the upstream of every
-    repo it walks, and the ones without a tracking branch are normal, not warnings.
+    ``quiet`` logs a failure at debug level instead of warning, for callers whose question a
+    repo may have no answer to (``--pull-ask`` asks every repo for its upstream; none is normal).
 
     ``input`` is handed to git on stdin, for the ``--pathspec-from-file=-`` commands: a
     path list on the command line has a length cap on Windows, stdin has none.
@@ -67,14 +67,14 @@ def run_git(
             errors=GIT_OUTPUT_ERRORS,
             check=False,
             input=input,
+            creationflags=SUBPROCESS_NO_WINDOW,
         )
     except FileNotFoundError:
         AppLogger.error("git executable not found on PATH.")
         return None
     if result.returncode != 0:
         stderr = result.stderr.strip()
-        # .git can exist yet be unreadable (dead gitlink/worktree pointer, empty dir).
-        # Warn cleanly instead of dumping the raw fatal; the repo is skipped either way.
+        # .git may exist yet be unreadable (dead gitlink, empty dir); warn cleanly, skip the repo.
         log = AppLogger.debug if quiet else AppLogger.warning
         if "not a git repository" in stderr:
             log(f"{repo}: .git present but not a valid git repository — skipping")

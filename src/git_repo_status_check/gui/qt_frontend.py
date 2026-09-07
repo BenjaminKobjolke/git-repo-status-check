@@ -16,11 +16,10 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from ..constants import GIT_OUTPUT_ENCODING
+from ..constants import GIT_OUTPUT_ENCODING, SUBPROCESS_NO_WINDOW
 from ..frontend import MenuItems, RunCancelled
 
 _CANCEL = object()  # the queue sentinel; never a valid menu answer
-_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # win32 only: no console flash
 
 
 class QtFrontend(QObject):
@@ -75,7 +74,7 @@ class QtFrontend(QObject):
             text=True,
             encoding=GIT_OUTPUT_ENCODING,
             errors="replace",
-            creationflags=_NO_WINDOW,
+            creationflags=SUBPROCESS_NO_WINDOW,
         ) as process:
             assert process.stdout is not None  # PIPE above guarantees it
             for line in process.stdout:

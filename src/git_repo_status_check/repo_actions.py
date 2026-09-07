@@ -24,6 +24,7 @@ from .constants import (
     RENAME_PREFIX_NOT_CONFIGURED,
     REPO_PATH_TOKEN,
     STASH_MESSAGE_FORMAT,
+    SUBPROCESS_NO_WINDOW,
 )
 from .scanner import line_ending_only_paths, run_git
 
@@ -138,5 +139,5 @@ def run_explorer(path: Path, command: str | None) -> None:
         launch = command.replace(REPO_PATH_TOKEN, str(path))
     else:
         launch = f'{command} "{path}"'
-    subprocess.Popen(launch, shell=True, cwd=str(path))
+    subprocess.Popen(launch, shell=True, cwd=str(path), creationflags=SUBPROCESS_NO_WINDOW)
     print(f"  Opened: {path}")

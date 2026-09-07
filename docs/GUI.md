@@ -29,7 +29,7 @@ The modes are not reimplemented. They talk to the user through one small port,
 | menu | `pick`, blessed backend | a signal; the Run tab renders buttons; the click is queued back |
 | typed answer | `input()` | a text field |
 | pause | Enter to continue | no-op (the log keeps everything on screen) |
-| live child process | inherits the console | captured line by line into the log, stdin closed |
+| live child process | inherits the console | captured line by line into the log, stdin closed, no console window |
 | progress | one overwritten stderr line | the status bar |
 
 A mode runs on a worker thread (`gui/worker.py`). When it calls `menu.choose`, the Qt
@@ -44,6 +44,17 @@ as `sys.stdout` and `sys.stderr` before anything else starts. The orchestration 
 
 Because the child's stdin is closed, a remote that asks for credentials fails with git's
 own message instead of hanging — configure a credential helper for such remotes.
+
+## No console flashes
+
+Under `pythonw` there is no console for a child to inherit, so Windows would give every
+`git` call (and the `cmd.exe` behind the file-explorer launch) a console window of its own —
+one flash per call, several per repo during a scan. Every child is therefore started with
+`CREATE_NO_WINDOW` (`SUBPROCESS_NO_WINDOW` in `constants.py`, `0` off Windows): the captured
+`scanner.run_git`, the explorer launch in `repo_actions.py`, and the window's `run_live`.
+Only the terminal frontend's `run_live` (`menu.py`) inherits the console, on purpose — that
+is where live output and credential prompts belong. `tests/unit/test_no_console_window.py`
+pins the flag on the two captured paths.
 
 ## Localization
 

@@ -113,3 +113,4 @@ their own. Muting or visiting a repo here does **not** silence it in `--commit-a
 - [PULL_ASK.md](PULL_ASK.md) — the opposite direction, which shares this mode's walk and
   menu loop.
 - [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) — the uncommitted-changes menu.
+- [SYNC_ASK.md](SYNC_ASK.md) — `--sync-ask`, which runs this mode as its last stage.

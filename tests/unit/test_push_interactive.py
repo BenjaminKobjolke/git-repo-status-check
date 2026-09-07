@@ -43,7 +43,17 @@ def test_skip_does_not_push(monkeypatch: pytest.MonkeyPatch, push_store: MuteSto
 def test_abort_stops_before_the_second_repo(
     monkeypatch: pytest.MonkeyPatch, push_store: MuteStore
 ) -> None:
-    assert _run_push(monkeypatch, push_store, [_ahead("r0"), _ahead("r1")], "a", "p") == []
+    assert (
+        _run_push(
+            monkeypatch,
+            push_store,
+            [_ahead("r0"), _ahead("r1")],
+            "a",
+            "p",
+            expect_completed=False,
+        )
+        == []
+    )
 
 
 def test_mute_writes_to_the_push_store_only(
@@ -143,7 +153,7 @@ def test_repo_with_nothing_to_push_is_recorded_as_checked(
 def test_abort_still_records_the_repo_you_were_shown(
     monkeypatch: pytest.MonkeyPatch, push_store: MuteStore
 ) -> None:
-    _run_push(monkeypatch, push_store, [_ahead("r0"), _ahead("r1")], "a")
+    _run_push(monkeypatch, push_store, [_ahead("r0"), _ahead("r1")], "a", expect_completed=False)
     assert push_store.last_visit(str(Path("r0"))) is not None
     assert push_store.last_visit(str(Path("r1"))) is None
 

@@ -4,7 +4,7 @@
 
 ```
 uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] [--push-ask]
-                      [--all] [--fix-line-endings] [--list-muted] [--debug]
+                      [--sync-ask] [--all] [--fix-line-endings] [--list-muted] [--debug]
 ```
 
 ## `--settings PATH`
@@ -194,6 +194,20 @@ D:\GIT\some\repo  -  2 commit(s) ahead of origin/main
    Abort
 ```
 
+## `--sync-ask`
+
+All three ask-modes in one run, in order: `--pull-ask`, then `--commit-ask`, then
+`--push-ask`, each announced with a `=== ... ===` banner and each behaving exactly as on its
+own (same menus, same separate mutes and visits). *Abort* in any stage ends the whole run.
+Requires a non-empty `commit_command`, checked before the pull stage starts. `--all` applies
+to every stage; `--limit` to the commit stage only.
+
+**See [SYNC_ASK.md](SYNC_ASK.md) for the full description.**
+
+```bat
+uv run python main.py --sync-ask
+```
+
 ## `--all`
 
 Ignore every skip filter for this run: `--commit-ask` scans and prompts for all repos,
@@ -203,7 +217,7 @@ not what is written. Nothing is un-muted — the stored mutes are simply not hon
 so the next run without `--all` skips them again.
 
 With `--pull-ask` and `--push-ask` it likewise ignores that mode's own mutes and visits, so
-every repo is checked again.
+every repo is checked again. With `--sync-ask` it applies to every stage.
 
 Only meaningful together with an ask-mode; on its own the report already
 lists every repo.

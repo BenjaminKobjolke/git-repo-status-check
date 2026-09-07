@@ -121,7 +121,8 @@ again — exactly as it does for `--commit-ask`.
 
 ## Credentials
 
-`GIT_TERMINAL_PROMPT=0` is set for the process before the walk starts. Without it, a single
+`GIT_TERMINAL_PROMPT=0` is set for the process before the walk starts and restored once it
+ends (so a later push in the same run — see [SYNC_ASK.md](SYNC_ASK.md) — can still prompt). Without it, a single
 repo whose remote wants a username would block its `git fetch` on a console prompt and hang
 the whole scan. With it, that repo's fetch fails fast and is skipped; the walk goes on.
 
@@ -140,4 +141,5 @@ stored credentials.
 - [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) — the uncommitted-changes menu, whose *Pull*
   submenu entry runs the same pull as this mode.
 - [PUSH_ASK.md](PUSH_ASK.md) — the opposite direction: commits the remote does not have.
+- [SYNC_ASK.md](SYNC_ASK.md) — `--sync-ask`, which runs this mode as its first stage.
 - [SCANNING.md](SCANNING.md) — how repos are found.

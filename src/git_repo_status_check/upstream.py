@@ -1,19 +1,18 @@
-"""``--pull-ask``, and the walk-and-ask loop it shares with ``--push-ask``.
+"""The ``--pull-ask`` measurement, and the walk-and-ask loop it shares with ``--push-ask``.
 
 The normal report only ever asks the working tree, so a repo that is clean but sitting
 behind its remote is invisible to it. This is the other direction — it asks the remote.
-It does its own walk (its own measurement, its own menu) because it selects repos on a
-criterion the shared scan never computes. ``--push-ask`` asks the same question the other way
-round, so the walk (``walk_found``) and the menu loop (``ask_interactive``) are written here
-once over an ``AskMode``, and each mode supplies only its measurement, its prompt and its
-wording.
+It does its own walk because it selects repos on a criterion the shared scan never
+computes. ``--push-ask`` asks the same question the other way round, so the walk
+(``walk_found``) and the menu loop (``ask_interactive``) are written here once over an
+``AskMode``, and each mode (``puller``, ``pusher``) supplies only its measurement, its
+prompt and its wording.
 
 User-facing I/O (menus via menu.py, print) like committer.py, not logging.
 """
 
 from __future__ import annotations
 
-import os
 import sys
 import time
 from collections.abc import Callable, Iterator
@@ -21,26 +20,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, Protocol, TypeVar
 
-from . import menu
 from .constants import (
     GIT_BEHIND_AHEAD,
     GIT_BEHIND_AHEAD_SEPARATOR,
     GIT_FETCH,
-    GIT_TERMINAL_PROMPT_ENV,
-    GIT_TERMINAL_PROMPT_OFF,
     GIT_UPSTREAM_NAME,
-    MENU_ABORTED,
     PULL_HEADER,
     PULL_HEADER_DIRTY,
-    PULL_MENU,
-    PULL_MENU_RENAME,
-    PULL_MENU_STASH,
-    PULL_NEEDS_TTY,
-    PULL_NONE_BEHIND,
-    SKIPPED_WORK_FETCHING,
 )
 from .mute_store import MuteStore, ScanSkip
-from .repo_actions import run_pull, run_rename, run_stash
 from .reporter import clear_progress, progress, report_skipped
 from .scanner import dirty_info, run_git, walk_repos
 from .settings import Settings
@@ -178,72 +166,13 @@ def walk_upstream(
     return walk_found(settings, measure, on_repo, skip, on_clean)
 
 
-def pull_menu(dirty_count: int, rename_prefix: str | None = None) -> tuple[tuple[str, str], ...]:
-    """``PULL_MENU`` with the stash and rename entries spliced in after *Pull*, when they apply.
-
-    Built per repo rather than being a constant: stashing is only useful — and only works —
-    on a repo with local changes, and renaming needs a ``rename_prefix`` to rename to. An
-    entry that cannot work is left out rather than shown and failing.
-    """
-    pull, *rest = PULL_MENU
-    extra: list[tuple[str, str]] = []
-    if dirty_count:
-        extra.append(PULL_MENU_STASH)
-    if rename_prefix:
-        extra.append(PULL_MENU_RENAME)
-    return (pull, *extra, *rest)
-
-
-def prompt_repo(found: RepoUpstream, store: MuteStore, rename_prefix: str | None = None) -> bool:
-    """Ask about one repo until it is settled; False when the user chose Abort.
-
-    The menu comes back after a failed pull (or a failed stash, or a refused rename) instead
-    of the walk moving on: the usual failure is local changes standing in the way, and the
-    answer to it — stash, then pull — is an entry on the same menu.
-    """
-    dirty = found.dirty_count
-    while True:
-        choice = menu.choose(pull_menu(dirty, rename_prefix), found.header())
-        if choice == "a":
-            print(MENU_ABORTED)
-            return False
-        if choice == "s":
-            return True
-        if choice == "m":
-            store.mute(str(found.path), time.time() + menu.ask_timeframe())
-            return True
-        # Renamed out of the way: there is no longer a repo at this path to pull into.
-        if choice == "r":
-            if run_rename(found.path, rename_prefix):
-                return True
-            menu.pause()
-            continue
-        if choice == "t":
-            if not run_stash(found.path):
-                menu.pause()
-                continue
-            # Stashed: the tree is clean, so the stash entry drops off the retry menu.
-            dirty = 0
-        pulled = run_pull(found.path)
-        # The next menu repaints the whole screen, so hold the pull output until read.
-        menu.pause()
-        if pulled:
-            return True
-
-
-PULL_MODE: AskMode[RepoUpstream] = AskMode(
-    measure=measure,
-    prompt=lambda found, store, settings: prompt_repo(found, store, settings.rename_prefix),
-    needs_tty=PULL_NEEDS_TTY,
-    none_found=PULL_NONE_BEHIND,
-    work=SKIPPED_WORK_FETCHING,
-)
-
-
 def ask_interactive(
     settings: Settings, store: MuteStore, mode: AskMode[T], prompt_all: bool = False
-) -> None:
+) -> bool:
     """Walk the repos this run cares about, asking about each one ``mode`` finds as it is found.
+
+    Returns False when the user chose Abort, so ``--sync-ask`` can end the whole run; True
+    once the walk ran to its end (nothing found, or no TTY, counts as completed).
 
     The menu comes up mid-walk rather than after it: fetching a few hundred repos takes
     minutes, and a run interrupted before the questions started used to leave nothing
@@ -255,11 +184,12 @@ def ask_interactive(
     """
     if not sys.stdin.isatty():
         print(mode.needs_tty)
-        return
+        return True
 
     now = time.time()
     skip = None if prompt_all else ScanSkip(store, settings.min_visit_age, now, mode.work)
     found_any = False
+    completed = True
     for found in walk_found(
         settings,
         mode.measure,
@@ -277,19 +207,11 @@ def ask_interactive(
         # min_visit_age keeps it out of the next run's walk.
         store.record_visit(str(found.path), time.time())
         if not mode.prompt(found, store, settings):
+            completed = False
             break
 
     clear_progress()
     if not found_any:
         print(mode.none_found)
     report_skipped(skip)
-
-
-def pull_interactive(settings: Settings, store: MuteStore, prompt_all: bool = False) -> None:
-    """``ask_interactive`` in pull mode, with git's credential prompt switched off first.
-
-    A remote wanting credentials would block the fetch on a console prompt and hang the
-    whole walk. Set for the process rather than threaded through every run_git call.
-    """
-    os.environ[GIT_TERMINAL_PROMPT_ENV] = GIT_TERMINAL_PROMPT_OFF
-    ask_interactive(settings, store, PULL_MODE, prompt_all)
+    return completed

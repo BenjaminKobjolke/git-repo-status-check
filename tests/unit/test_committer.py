@@ -37,7 +37,7 @@ def test_skip_does_not_run_command(
     monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
 ) -> None:
     _answers(monkeypatch, "s")
-    committer.commit_interactive(_statuses(1), "do-commit", store)
+    assert committer.commit_interactive(_statuses(1), "do-commit", store) is True
     mock_run.assert_not_called()
 
 
@@ -46,7 +46,7 @@ def test_abort_stops_before_later_repos(
 ) -> None:
     # 'c' would fire on repo1 if abort didn't stop the loop first.
     _answers(monkeypatch, "a", "c")
-    committer.commit_interactive(_statuses(2), "do-commit", store)
+    assert committer.commit_interactive(_statuses(2), "do-commit", store) is False
     mock_run.assert_not_called()
 
 

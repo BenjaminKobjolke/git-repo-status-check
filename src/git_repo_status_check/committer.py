@@ -38,8 +38,11 @@ def commit_interactive(
     store: MuteStore,
     file_explorer: str | None = None,
     rename_prefix: str | None = None,
-) -> None:
+) -> bool:
     """Walk ``statuses`` (already filtered/limited), prompting to run ``command`` per repo.
+
+    Returns False when the user chose Abort (so ``--sync-ask`` can end the whole run), True
+    once every repo was settled -- or there was nothing to prompt.
 
     *Commit* runs the command in the repo dir, *Skip* moves on, *Abort* stops the whole
     loop, and *More actions...* opens a submenu
@@ -57,7 +60,7 @@ def commit_interactive(
     """
     if not sys.stdin.isatty():
         print(COMMIT_NEEDS_TTY)
-        return
+        return True
 
     for status in statuses:
         header = COMMIT_HEADER.format(path=status.path, count=status.dirty_count)
@@ -70,13 +73,14 @@ def commit_interactive(
         choice = _ask(header, status.path, file_explorer, rename_prefix)
         if choice == "a":
             print(MENU_ABORTED)
-            return
+            return False
         if choice == "s":
             continue
         if choice == "mute":
             store.mute(str(status.path), time.time() + menu.ask_timeframe())
             continue
         _run_commit(command, status)
+    return True
 
 
 def _ask(header: str, path: Path, file_explorer: str | None, rename_prefix: str | None) -> str:

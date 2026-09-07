@@ -57,13 +57,14 @@ start_commit-ask.bat
 start_commit-ask_all.bat
 start_pull-ask.bat
 start_push-ask.bat
+start_sync-ask.bat
 ```
 
 or directly:
 
 ```bat
 uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] [--push-ask]
-                      [--all] [--fix-line-endings] [--list-muted] [--debug]
+                      [--sync-ask] [--all] [--fix-line-endings] [--list-muted] [--debug]
 ```
 
 - `--settings PATH` — use a settings file other than `settings.json` in the project root
@@ -107,6 +108,10 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] 
   branch with commits but no upstream is offered as `Push -u <remote> <branch>`. Same
   `min_visit_age` hold-back and mutes as the other modes, in tables of its own.
   See [docs/PUSH_ASK.md](docs/PUSH_ASK.md).
+- `--sync-ask` — all three in one run: `--pull-ask`, then `--commit-ask`, then `--push-ask`,
+  each exactly as on its own (own menus, own mutes and visits). *Abort* in any stage ends the
+  run. Needs a `commit_command`, checked before the pull stage starts.
+  See [docs/SYNC_ASK.md](docs/SYNC_ASK.md).
 - `--all` — with any ask-mode, prompt for every repo, ignoring mutes,
   `min_visit_age` and `min_modified_age`. Mutes are kept, just not honored for this run.
 - `--fix-line-endings` — offer to repair each repo whose only changes are line-ending
@@ -119,6 +124,7 @@ See [docs/COMMAND_LINE_ARGUMENTS.md](docs/COMMAND_LINE_ARGUMENTS.md),
 [docs/COMMIT_ASK_MENU.md](docs/COMMIT_ASK_MENU.md) (the `--commit-ask` menu),
 [docs/PULL_ASK.md](docs/PULL_ASK.md) (the `--pull-ask` mode),
 [docs/PUSH_ASK.md](docs/PUSH_ASK.md) (the `--push-ask` mode),
+[docs/SYNC_ASK.md](docs/SYNC_ASK.md) (all three in one run),
 [docs/SETTINGS.md](docs/SETTINGS.md), and [docs/CODEX.md](docs/CODEX.md) (commit-with-Codex
 examples) for details.
 

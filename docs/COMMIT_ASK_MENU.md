@@ -101,6 +101,7 @@ never consume the repo, and neither does a refused rename or a failed stash. Onl
 - [PULL_ASK.md](PULL_ASK.md) — `--pull-ask`, which finds repos behind their remote rather
   than repos with local changes, and keeps its own mutes.
 - [PUSH_ASK.md](PUSH_ASK.md) — `--push-ask`, which finds committed-but-unpushed work.
+- [SYNC_ASK.md](SYNC_ASK.md) — `--sync-ask`: pull, this menu, then push in one run.
 - [SETTINGS.md](SETTINGS.md) — the `commit_command`, `file_explorer`, `rename_prefix`
   and `min_modified_age` keys.
 - [CODEX.md](CODEX.md) — commit-with-Codex `commit_command` examples.

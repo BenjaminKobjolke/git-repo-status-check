@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from git_repo_status_check import upstream
+from git_repo_status_check import puller
 from git_repo_status_check.constants import PULL_MENU
 from git_repo_status_check.mute_store import MuteStore
 
@@ -19,19 +19,19 @@ from .helpers import _behind, _run_pull
 
 def test_stash_entry_is_hidden_on_a_clean_repo() -> None:
     """Nothing to stash there -- offering it would only produce a failure line."""
-    assert upstream.pull_menu(0) == PULL_MENU
+    assert puller.pull_menu(0) == PULL_MENU
 
 
 def test_stash_entry_follows_pull_on_a_dirty_repo() -> None:
-    labels = [label for label, _ in upstream.pull_menu(3)]
+    labels = [label for label, _ in puller.pull_menu(3)]
     assert labels == ["Pull", "Stash changes and pull", "Skip", "Mute repo", "Abort"]
 
 
 def test_rename_entry_only_with_a_configured_prefix() -> None:
     """No prefix to rename to means no entry — it could only fail."""
-    labels = [label for label, _ in upstream.pull_menu(0, "_old_")]
+    labels = [label for label, _ in puller.pull_menu(0, "_old_")]
     assert labels == ["Pull", "Rename repo", "Skip", "Mute repo", "Abort"]
-    assert upstream.pull_menu(0) == PULL_MENU
+    assert puller.pull_menu(0) == PULL_MENU
 
 
 def test_rename_choice_renames_and_moves_on(
@@ -44,14 +44,14 @@ def test_rename_choice_renames_and_moves_on(
         renamed.append((path, prefix))
         return True
 
-    monkeypatch.setattr(upstream, "run_rename", _rename)
+    monkeypatch.setattr(puller, "run_rename", _rename)
     pulled = _run_pull(monkeypatch, pull_store, [_behind("repo0"), _behind("repo1")], "r", "s")
     assert renamed == [(Path("repo0"), None)]
     assert pulled == []
 
 
 def test_a_failed_rename_re_asks(monkeypatch: pytest.MonkeyPatch, pull_store: MuteStore) -> None:
-    monkeypatch.setattr(upstream, "run_rename", lambda _path, _prefix: False)
+    monkeypatch.setattr(puller, "run_rename", lambda _path, _prefix: False)
     pulled = _run_pull(monkeypatch, pull_store, [_behind("repo0")], "r", "p")
     assert pulled == [Path("repo0")]
 
@@ -69,7 +69,7 @@ def _run_stashing(
         stashed.append(path)
         return stash_ok
 
-    monkeypatch.setattr(upstream, "run_stash", run_stash)
+    monkeypatch.setattr(puller, "run_stash", run_stash)
     pulled = _run_pull(monkeypatch, store, [_behind("repo0", dirty_count=2)], *choices)
     return stashed, pulled
 

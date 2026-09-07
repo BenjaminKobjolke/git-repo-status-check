@@ -12,6 +12,9 @@ from pathlib import Path
 from git_repo_status_check.app_logger import AppLogger
 from git_repo_status_check.committer import commit_interactive
 from git_repo_status_check.constants import (
+    ASK_REQUIRES_COMMIT_COMMAND,
+    FLAG_COMMIT_ASK,
+    FLAG_SYNC_ASK,
     MUTE_DB_FILE,
     MUTED_LINE,
     MUTED_NONE,
@@ -20,6 +23,10 @@ from git_repo_status_check.constants import (
     MUTED_SECTION_PUSH,
     SKIP_LABEL_RECENT,
     SKIPPED_WORK_SCANNING,
+    SYNC_STAGE_COMMIT,
+    SYNC_STAGE_HEADER,
+    SYNC_STAGE_PULL,
+    SYNC_STAGE_PUSH,
 )
 from git_repo_status_check.duration import format_duration
 from git_repo_status_check.line_endings import fix_interactive
@@ -32,11 +39,11 @@ from git_repo_status_check.mute_store import (
     PushVisit,
     ScanSkip,
 )
+from git_repo_status_check.puller import pull_interactive
 from git_repo_status_check.pusher import push_interactive
 from git_repo_status_check.reporter import clear_progress, progress, report, report_skipped
 from git_repo_status_check.scanner import scan_all
 from git_repo_status_check.settings import Settings, SettingsError, resolve_settings_path
-from git_repo_status_check.upstream import pull_interactive
 
 _PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -60,6 +67,11 @@ def main(argv: list[str] | None = None) -> int:
         "--push-ask",
         action="store_true",
         help="Show a menu for each repo with commits its upstream does not have yet.",
+    )
+    parser.add_argument(
+        "--sync-ask",
+        action="store_true",
+        help="Run --pull-ask, then --commit-ask, then --push-ask; Abort ends the run.",
     )
     parser.add_argument(
         "--fix-line-endings",
@@ -108,6 +120,16 @@ def main(argv: list[str] | None = None) -> int:
         fix_interactive(settings)
         return 0
 
+    # Fail before any walk (a pull walk is minutes) if the commit stage can't be honored.
+    if (args.commit_ask or args.sync_ask) and not settings.commit_command:
+        flag = FLAG_SYNC_ASK if args.sync_ask else FLAG_COMMIT_ASK
+        print(ASK_REQUIRES_COMMIT_COMMAND.format(flag=flag), file=sys.stderr)
+        return 1
+
+    if args.sync_ask:
+        _sync_stages(settings, store, pull_store, push_store, args.all, args.limit)
+        return 0
+
     # Being behind a remote is a different question from having uncommitted changes, so this
     # mode does its own walk (it has to fetch) rather than consuming the normal scan.
     if args.pull_ask:
@@ -119,22 +141,47 @@ def main(argv: list[str] | None = None) -> int:
         push_interactive(settings, push_store, prompt_all=args.all)
         return 0
 
-    # Fail before scanning (which can be slow) if --commit-ask can't be honored.
-    if args.commit_ask and not settings.commit_command:
-        print(
-            "--commit-ask requires a non-empty commit_command in settings.json.",
-            file=sys.stderr,
-        )
-        return 1
+    _commit_stage(settings, store, args.commit_ask, args.all, args.limit)
+    return 0
 
+
+def _sync_stages(
+    settings: Settings,
+    store: MuteStore,
+    pull_store: MuteStore,
+    push_store: MuteStore,
+    prompt_all: bool,
+    limit: int | None,
+) -> None:
+    """``--sync-ask``: pull, then commit, then push -- each the existing mode, in order.
+
+    The first stage the user aborts ends the run; that stage already printed ``Aborted.``
+    so nothing more is said here. Each stage keeps its own store, mutes and visits.
+    """
+    print(SYNC_STAGE_HEADER.format(stage=SYNC_STAGE_PULL))
+    if not pull_interactive(settings, pull_store, prompt_all=prompt_all):
+        return
+    print(SYNC_STAGE_HEADER.format(stage=SYNC_STAGE_COMMIT))
+    if not _commit_stage(settings, store, True, prompt_all, limit):
+        return
+    print(SYNC_STAGE_HEADER.format(stage=SYNC_STAGE_PUSH))
+    push_interactive(settings, push_store, prompt_all=prompt_all)
+
+
+def _commit_stage(
+    settings: Settings, store: MuteStore, ask: bool, prompt_all: bool, limit: int | None
+) -> bool:
+    """The scan-and-report, plus the ``--commit-ask`` menus when ``ask``.
+
+    False when the user aborted the menus; True otherwise (plain report mode included).
+    """
     # Mutes and visits filter the walk itself, so a held-back repo costs no git call --
     # only --commit-ask acts per repo, so only it filters. --all drops both predicates,
     # which is what makes every repo actionable again.
     now = time.time()
-    ask = args.commit_ask
     skip = (
         ScanSkip(store, settings.min_visit_age, now, SKIPPED_WORK_SCANNING)
-        if ask and not args.all
+        if ask and not prompt_all
         else None
     )
 
@@ -151,19 +198,19 @@ def main(argv: list[str] | None = None) -> int:
         on_clean=record_checked if ask else None,
     )
     clear_progress()
-    skip_reason = build_skip_reason(settings) if ask and not args.all else None
-    shown = report(statuses, limit=args.limit, skip_reason=skip_reason)
+    skip_reason = build_skip_reason(settings) if ask and not prompt_all else None
+    shown = report(statuses, limit=limit, skip_reason=skip_reason)
     report_skipped(skip)
 
-    if args.commit_ask and settings.commit_command:
-        commit_interactive(
-            shown,
-            settings.commit_command,
-            store,
-            settings.file_explorer,
-            settings.rename_prefix,
-        )
-    return 0
+    if not (ask and settings.commit_command):
+        return True
+    return commit_interactive(
+        shown,
+        settings.commit_command,
+        store,
+        settings.file_explorer,
+        settings.rename_prefix,
+    )
 
 
 def build_skip_reason(settings: Settings) -> Callable[[RepoStatus], str | None]:

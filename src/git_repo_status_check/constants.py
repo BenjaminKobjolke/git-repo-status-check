@@ -186,6 +186,11 @@ MENU_PAUSE_PROMPT = "  Press Enter to continue... "
 MENU_NEEDS_TTY = "Menus need a real terminal; this is not a console."
 MENU_ABORTED = "Aborted."
 
+# Checked before any walk starts: a pull walk is minutes, so a missing command fails first.
+ASK_REQUIRES_COMMIT_COMMAND = "{flag} requires a non-empty commit_command in settings.json."
+FLAG_COMMIT_ASK = "--commit-ask"
+FLAG_SYNC_ASK = "--sync-ask"
+
 COMMIT_NEEDS_TTY = "--commit-ask needs an interactive terminal; nothing to do."
 COMMIT_HEADER = "{path}  -  {count} uncommitted"
 COMMIT_MENU = (
@@ -270,6 +275,12 @@ PUSH_MENU = (
 )
 # Replaces the Push label on a branch without upstream, so the menu says what it will run.
 PUSH_MENU_SET_UPSTREAM = "Push -u {remote} {branch}"
+
+# --sync-ask: one banner per stage, so the user sees which question is being asked.
+SYNC_STAGE_HEADER = "\n=== {stage} ==="
+SYNC_STAGE_PULL = "Pull (--pull-ask)"
+SYNC_STAGE_COMMIT = "Commit (--commit-ask)"
+SYNC_STAGE_PUSH = "Push (--push-ask)"
 
 # --list-muted section headings: the ask-modes keep separate mutes, so each is listed.
 MUTED_SECTION_COMMIT = "Commit mutes (--commit-ask):"

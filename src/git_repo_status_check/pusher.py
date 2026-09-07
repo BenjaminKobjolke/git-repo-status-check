@@ -146,10 +146,11 @@ PUSH_MODE: AskMode[RepoAhead] = AskMode(
 )
 
 
-def push_interactive(settings: Settings, store: MuteStore, prompt_all: bool = False) -> None:
+def push_interactive(settings: Settings, store: MuteStore, prompt_all: bool = False) -> bool:
     """Walk the repos this run cares about, asking about each one ahead as it is found.
 
     No ``GIT_TERMINAL_PROMPT=0`` here, unlike ``--pull-ask``: nothing runs unattended (the
-    measurement is local), and a push may legitimately have to ask for credentials.
+    measurement is local), and a push may legitimately have to ask for credentials. False
+    when the user chose Abort.
     """
-    ask_interactive(settings, store, PUSH_MODE, prompt_all)
+    return ask_interactive(settings, store, PUSH_MODE, prompt_all)

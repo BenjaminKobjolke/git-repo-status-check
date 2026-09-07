@@ -7,11 +7,12 @@ them, which is why they are here rather than in either one.
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
-from git_repo_status_check import menu, pusher, scanner, upstream
+from git_repo_status_check import menu, puller, pusher, scanner, upstream
 from git_repo_status_check.models import RepoStatus
 from git_repo_status_check.mute_store import MuteStore
 from git_repo_status_check.settings import Settings
@@ -80,6 +81,20 @@ def _behind(path: str, dirty_count: int = 0) -> upstream.RepoUpstream:
     )
 
 
+def _scripted_walk(
+    monkeypatch: pytest.MonkeyPatch, repos: Sequence[object], choices: tuple[str, ...]
+) -> None:
+    """A TTY, a walk that yields exactly ``repos``, and a menu answering ``choices`` in order.
+
+    The setup both upstream-mode drivers (``_run_pull`` / ``_run_push``) share.
+    """
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(upstream, "walk_found", lambda *_a, **_k: iter(repos))
+    it = iter(choices)
+    monkeypatch.setattr(menu, "choose", lambda _items, _title: next(it))
+    monkeypatch.setattr(menu, "pause", lambda: None)
+
+
 def _run_pull(
     monkeypatch: pytest.MonkeyPatch,
     store: MuteStore,
@@ -87,21 +102,24 @@ def _run_pull(
     *choices: str,
     prompt_all: bool = False,
     fail_pulls: int = 0,
+    expect_completed: bool = True,
 ) -> list[Path]:
-    """Drive ``pull_interactive`` over ``repos`` with scripted menu answers; return pulls."""
+    """Drive ``pull_interactive`` over ``repos`` with scripted menu answers; return pulls.
+
+    ``expect_completed`` is asserted against the mode's result: True unless Abort ended it.
+    """
     pulled: list[Path] = []
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(upstream, "walk_found", lambda *_a, **_k: iter(repos))
 
     def _pull(path: Path) -> bool:
         pulled.append(path)
         return len(pulled) > fail_pulls
 
-    monkeypatch.setattr(upstream, "run_pull", _pull)
-    it = iter(choices)
-    monkeypatch.setattr(menu, "choose", lambda _items, _title: next(it))
-    monkeypatch.setattr(menu, "pause", lambda: None)
-    upstream.pull_interactive(Settings(folders=(Path("root"),)), store, prompt_all=prompt_all)
+    monkeypatch.setattr(puller, "run_pull", _pull)
+    _scripted_walk(monkeypatch, repos, choices)
+    completed = puller.pull_interactive(
+        Settings(folders=(Path("root"),)), store, prompt_all=prompt_all
+    )
+    assert completed is expect_completed
     return pulled
 
 
@@ -124,19 +142,19 @@ def _run_push(
     repos: list[pusher.RepoAhead],
     *choices: str,
     fail_pushes: int = 0,
+    expect_completed: bool = True,
 ) -> list[tuple[Path, tuple[str, ...]]]:
-    """Drive ``push_interactive`` over ``repos`` with scripted answers; return the pushes."""
+    """Drive ``push_interactive`` over ``repos`` with scripted answers; return the pushes.
+
+    ``expect_completed`` is asserted against the mode's result: True unless Abort ended it.
+    """
     pushed: list[tuple[Path, tuple[str, ...]]] = []
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(upstream, "walk_found", lambda *_a, **_k: iter(repos))
 
     def _push(path: Path, push_args: tuple[str, ...]) -> bool:
         pushed.append((path, push_args))
         return len(pushed) > fail_pushes
 
     monkeypatch.setattr(pusher, "run_push", _push)
-    it = iter(choices)
-    monkeypatch.setattr(menu, "choose", lambda _items, _title: next(it))
-    monkeypatch.setattr(menu, "pause", lambda: None)
-    pusher.push_interactive(Settings(folders=(Path("root"),)), store)
+    _scripted_walk(monkeypatch, repos, choices)
+    assert pusher.push_interactive(Settings(folders=(Path("root"),)), store) is expect_completed
     return pushed

@@ -133,3 +133,76 @@ def test_list_muted_has_a_push_section(
     out = capsys.readouterr().out
     assert "Push mutes (--push-ask):" in out
     assert "D:/GIT/foo" in out
+
+
+def _run_sync_ask(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *extra: str,
+    pull_result: bool = True,
+    commit_result: bool = True,
+    commit_command: str = "echo hi",
+) -> tuple[int, list[str], dict[str, object]]:
+    """Run --sync-ask with every stage stubbed; return (exit code, stage order, kwargs seen)."""
+    settings_file = tmp_path / "settings.json"
+    command = f', "commit_command": "{commit_command}"' if commit_command else ""
+    settings_file.write_text('{"folders": ["."]' + command + "}", encoding="utf-8")
+    order: list[str] = []
+    seen: dict[str, object] = {}
+
+    def fake_pull(settings: object, store: object, prompt_all: bool = False) -> bool:
+        order.append("pull")
+        seen["pull_all"] = prompt_all
+        return pull_result
+
+    def fake_push(settings: object, store: object, prompt_all: bool = False) -> bool:
+        order.append("push")
+        seen["push_all"] = prompt_all
+        return True
+
+    def fake_commit(*_a: object, **_k: object) -> bool:
+        order.append("commit")
+        return commit_result
+
+    monkeypatch.setattr(main, "pull_interactive", fake_pull)
+    monkeypatch.setattr(main, "push_interactive", fake_push)
+    monkeypatch.setattr(main, "scan_all", lambda *_a, **_k: [])
+    monkeypatch.setattr(main, "report", lambda *_a, **_k: [])
+    monkeypatch.setattr(main, "commit_interactive", fake_commit)
+    code = main.main(["--settings", str(settings_file), "--sync-ask", *extra])
+    return code, order, seen
+
+
+@pytest.mark.parametrize(("extra", "expected_all"), [((), False), (("--all",), True)])
+def test_sync_ask_runs_pull_commit_push_in_order(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, extra: tuple[str, ...], expected_all: bool
+) -> None:
+    code, order, seen = _run_sync_ask(monkeypatch, tmp_path, *extra)
+    assert code == 0
+    assert order == ["pull", "commit", "push"]
+    assert seen["pull_all"] is expected_all
+    assert seen["push_all"] is expected_all
+
+
+def test_sync_ask_abort_in_pull_stage_ends_the_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    code, order, _ = _run_sync_ask(monkeypatch, tmp_path, pull_result=False)
+    assert code == 0
+    assert order == ["pull"]
+
+
+def test_sync_ask_abort_in_commit_stage_skips_push(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _, order, _ = _run_sync_ask(monkeypatch, tmp_path, commit_result=False)
+    assert order == ["pull", "commit"]
+
+
+def test_sync_ask_requires_commit_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, order, _ = _run_sync_ask(monkeypatch, tmp_path, commit_command="")
+    assert code == 1
+    assert order == []
+    assert "--sync-ask" in capsys.readouterr().err

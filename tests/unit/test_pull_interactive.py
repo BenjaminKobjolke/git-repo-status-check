@@ -6,13 +6,14 @@ nothing here touches a real repo or the network.
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
 
 import pytest
 
-from git_repo_status_check import menu, upstream
+from git_repo_status_check import menu, puller, upstream
 from git_repo_status_check.mute_store import MuteStore
 from git_repo_status_check.settings import Settings
 
@@ -34,7 +35,17 @@ def test_abort_stops_before_the_second_repo(
     monkeypatch: pytest.MonkeyPatch, pull_store: MuteStore
 ) -> None:
     # 'p' would fire on repo1 if abort did not stop the loop first.
-    assert _run_pull(monkeypatch, pull_store, [_behind("r0"), _behind("r1")], "a", "p") == []
+    assert (
+        _run_pull(
+            monkeypatch,
+            pull_store,
+            [_behind("r0"), _behind("r1")],
+            "a",
+            "p",
+            expect_completed=False,
+        )
+        == []
+    )
 
 
 def test_mute_writes_to_the_pull_store(
@@ -63,9 +74,9 @@ def _held_back(
     """
     calls = _stub_git(monkeypatch, upstream_name=upstream_name, counts=counts)
     _one_repo_console(monkeypatch)
-    monkeypatch.setattr(upstream, "run_pull", lambda _path: True)
+    monkeypatch.setattr(puller, "run_pull", lambda _path: True)
     settings = Settings(folders=(Path("root"),), min_visit_age=min_visit_age)
-    upstream.pull_interactive(settings, store, prompt_all=prompt_all)
+    puller.pull_interactive(settings, store, prompt_all=prompt_all)
     return calls
 
 
@@ -118,14 +129,14 @@ def test_abort_still_records_the_repo_you_were_shown(
 ) -> None:
     """The visit is written before the menu is drawn, so bailing out does not undo it --
     otherwise the same repo greets you on every run."""
-    _run_pull(monkeypatch, pull_store, [_behind("repo0")], "a")
+    _run_pull(monkeypatch, pull_store, [_behind("repo0")], "a", expect_completed=False)
     assert pull_store.last_visit(str(Path("repo0"))) is not None
 
 
 def test_abort_leaves_the_repos_you_never_saw_unrecorded(
     monkeypatch: pytest.MonkeyPatch, pull_store: MuteStore
 ) -> None:
-    _run_pull(monkeypatch, pull_store, [_behind("r0"), _behind("r1")], "a")
+    _run_pull(monkeypatch, pull_store, [_behind("r0"), _behind("r1")], "a", expect_completed=False)
     assert pull_store.last_visit(str(Path("r0"))) is not None
     assert pull_store.last_visit(str(Path("r1"))) is None
 
@@ -137,7 +148,7 @@ def test_pull_interactive_without_a_tty_does_nothing(
     monkeypatch.setattr(
         upstream, "walk_found", lambda *_a, **_k: pytest.fail("must not fetch without a TTY")
     )
-    upstream.pull_interactive(Settings(folders=(Path("root"),)), pull_store)
+    puller.pull_interactive(Settings(folders=(Path("root"),)), pull_store)
     assert "interactive terminal" in capsys.readouterr().out
 
 
@@ -179,5 +190,19 @@ def test_abort_still_settles_the_repos_that_needed_nothing(
     _one_repo_console(monkeypatch, "clean")
     _stub_git(monkeypatch, counts="0\t0\n")
     monkeypatch.setattr(menu, "choose", lambda _items, _title: "a")
-    upstream.pull_interactive(Settings(folders=(Path("root"),)), pull_store)
+    puller.pull_interactive(Settings(folders=(Path("root"),)), pull_store)
     assert pull_store.last_visit(str(Path("clean"))) is not None
+
+
+@pytest.mark.parametrize("previous", [None, "1"])
+def test_terminal_prompt_setting_is_restored_afterwards(
+    monkeypatch: pytest.MonkeyPatch, pull_store: MuteStore, previous: str | None
+) -> None:
+    """The push stage of --sync-ask may have to ask for credentials, so the off switch must
+    not outlive the pull walk."""
+    if previous is None:
+        monkeypatch.delenv("GIT_TERMINAL_PROMPT", raising=False)
+    else:
+        monkeypatch.setenv("GIT_TERMINAL_PROMPT", previous)
+    _run_pull(monkeypatch, pull_store, [])
+    assert os.environ.get("GIT_TERMINAL_PROMPT") == previous

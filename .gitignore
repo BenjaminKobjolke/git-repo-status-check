@@ -17,3 +17,5 @@ tmp/commit_msg.tmp
 mutes.db
 mutes.db-journal
 mutes.db-wal
+graphify-out/
+src/graphify-out/

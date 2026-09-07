@@ -47,3 +47,7 @@ Results are written to `code_analysis_results/` as **per-rule CSV files** (e.g.
 no `.md` report, and a missing CSV means that rule found nothing. Fix any
 reported issues before committing.
 
+# graphify
+
+This project's graphify scan root is `src/` (see the graphify block in `CODING_RULES.md`).
+Rebuild with `/graphify src/ --directed` from the repo root, never the repo root itself.

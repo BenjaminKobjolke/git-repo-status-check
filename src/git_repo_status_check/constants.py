@@ -87,6 +87,18 @@ GIT_UPSTREAM_NAME: tuple[str, ...] = (
 GIT_BEHIND_AHEAD: tuple[str, ...] = ("rev-list", "--left-right", "--count", "@{u}...HEAD")
 GIT_BEHIND_AHEAD_SEPARATOR = "\t"
 
+# --push-ask on a branch with no upstream: nothing to compare against, so every commit on the
+# branch is unpushed and `rev-list --count HEAD` is the ahead count. `symbolic-ref` names the
+# branch to push and fails on a detached HEAD, which is how those repos are skipped; `remote`
+# lists the remotes the `-u` push could target (first one wins, which is "origin" nearly always).
+GIT_CURRENT_BRANCH: tuple[str, ...] = ("symbolic-ref", "--short", "HEAD")
+GIT_REMOTES: tuple[str, ...] = ("remote",)
+GIT_COMMIT_COUNT: tuple[str, ...] = ("rev-list", "--count", "HEAD")
+GIT_PUSH: tuple[str, ...] = ("push",)
+# `--no-edit`: a merge commit would otherwise open the git editor over the menu.
+GIT_PULL: tuple[str, ...] = ("pull", "--no-edit")
+GIT_PUSH_SET_UPSTREAM: tuple[str, ...] = ("push", "-u")
+
 # A remote wanting credentials would otherwise block `git fetch` on a console prompt and hang
 # the whole walk. Set once for the process, so no env has to be threaded through run_git.
 GIT_TERMINAL_PROMPT_ENV = "GIT_TERMINAL_PROMPT"
@@ -152,6 +164,7 @@ SKIPPED_SUMMARY = (
 )
 SKIPPED_WORK_FETCHING = "fetching"
 SKIPPED_WORK_SCANNING = "scanning"
+SKIPPED_WORK_CHECKING = "checking"
 DEBUG_SKIPPED_REPO = "{repo}: not checked ({reason})"
 
 # Labels for repos listed but not prompted in --commit-ask (see main.build_skip_reason).
@@ -242,9 +255,26 @@ PULL_MENU_STASH = ("Stash changes and pull", "t")
 # archive-it rename the --commit-ask submenu offers, for a repo you would rather stop pulling.
 PULL_MENU_RENAME = ("Rename repo", "r")
 
-# --list-muted section headings: the two ask-modes keep separate mutes, so both are listed.
+# --push-ask prompts and labels. No fetch in this mode, so "ahead" is against the local
+# tracking ref; the dirty suffix is PULL_HEADER_DIRTY, shared.
+PUSH_NEEDS_TTY = "--push-ask needs an interactive terminal; nothing to do."
+PUSH_NONE_AHEAD = "No repos with unpushed commits."
+PUSH_HEADER = "{path}  -  {ahead} commit(s) ahead of {upstream}"
+PUSH_HEADER_NO_UPSTREAM = "{path}  -  {ahead} commit(s) on {branch}, no upstream"
+PUSH_MENU = (
+    ("Push", "p"),
+    ("Pull", "l"),
+    ("Skip", "s"),
+    ("Mute repo", "m"),
+    ("Abort", "a"),
+)
+# Replaces the Push label on a branch without upstream, so the menu says what it will run.
+PUSH_MENU_SET_UPSTREAM = "Push -u {remote} {branch}"
+
+# --list-muted section headings: the ask-modes keep separate mutes, so each is listed.
 MUTED_SECTION_COMMIT = "Commit mutes (--commit-ask):"
 MUTED_SECTION_PULL = "Pull mutes (--pull-ask):"
+MUTED_SECTION_PUSH = "Push mutes (--push-ask):"
 MUTED_NONE = "No muted repos."
 MUTED_LINE = "{path}  -  muted until {until}"
 

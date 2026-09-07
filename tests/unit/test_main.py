@@ -8,7 +8,7 @@ import pytest
 
 import main
 from git_repo_status_check.models import RepoStatus
-from git_repo_status_check.mute_store import MuteStore
+from git_repo_status_check.mute_store import MuteStore, PushMute, PushVisit
 from git_repo_status_check.settings import Settings
 
 _NOW = 10_000.0
@@ -105,3 +105,31 @@ def test_checked_repo_is_recorded_by_the_walk(
     assert callable(on_clean)
     on_clean(Path("repo0"))
     assert store.last_visit(_REPO) == _NOW
+
+
+@pytest.mark.parametrize(("extra", "expected_all"), [((), False), (("--all",), True)])
+def test_push_ask_runs_the_push_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, extra: tuple[str, ...], expected_all: bool
+) -> None:
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text('{"folders": ["."]}', encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    def fake_push(settings: object, store: object, prompt_all: bool = False) -> None:
+        seen["prompt_all"] = prompt_all
+
+    monkeypatch.setattr(main, "push_interactive", fake_push)
+    monkeypatch.setattr(main, "scan_all", lambda *_a, **_k: pytest.fail("must not scan"))
+    assert main.main(["--settings", str(settings_file), "--push-ask", *extra]) == 0
+    assert seen["prompt_all"] is expected_all
+
+
+def test_list_muted_has_a_push_section(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(main, "_PROJECT_ROOT", tmp_path)
+    MuteStore(tmp_path / "mutes.db", PushMute, PushVisit).mute("D:/GIT/foo", _NOW + 3600)
+    assert main.main(["--list-muted"]) == 0
+    out = capsys.readouterr().out
+    assert "Push mutes (--push-ask):" in out
+    assert "D:/GIT/foo" in out

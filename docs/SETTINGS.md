@@ -30,7 +30,7 @@ optional `commit_command` key used by `--commit-ask`, an optional `file_explorer
 for its `e` menu action, an optional `rename_prefix` key for its `r` menu action, an
 optional `ignore_prefixes` key that skips folders by name prefix during scanning, and an
 optional `min_modified_age` key that holds `--commit-ask` back from freshly-touched repos,
-and an optional `min_visit_age` key that stops either ask-mode re-checking a repo it just
+and an optional `min_visit_age` key that stops any ask-mode re-checking a repo it just
 settled.
 
 ```json
@@ -169,11 +169,11 @@ settled.
 - A repo is recorded as *settled* two ways. Either its menu was shown to you (the visit is
   written before the menu is drawn, so *Abort* and Ctrl-C count too; repos further down the
   walk that you never reached do not), or the walk found nothing to ask about it: no uncommitted changes for `--commit-ask`, nothing to pull for
-  `--pull-ask`. For this long afterwards that repo is left alone, so re-running the tool a
+  `--pull-ask`, nothing to push for `--push-ask`. For this long afterwards that repo is left alone, so re-running the tool a
   few minutes later only covers what you have not already dealt with.
-- **Affects `--commit-ask` and `--pull-ask` the same way**: a settled repo is dropped
+- **Affects all three ask-modes the same way**: a settled repo is dropped
   **before** the git call, so it is not listed at all. You get one
-  `Skipped N repo(s) without scanning` / `without fetching` line instead, and `--debug`
+  `Skipped N repo(s) without scanning` / `without fetching` / `without checking` line instead, and `--debug`
   names each skipped repo. That is where the runtime of a re-run goes, in both modes.
 - Set it to `null` to switch the behaviour off and be prompted for every repo every run.
   `"0h"` is **not** accepted (durations must be positive) — `null` is the off switch.

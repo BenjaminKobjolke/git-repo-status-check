@@ -3,8 +3,8 @@
 `main.py` (or `start.bat`) accepts the following arguments. All are optional.
 
 ```
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] [--all]
-                      [--fix-line-endings] [--list-muted] [--debug]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] [--push-ask]
+                      [--all] [--fix-line-endings] [--list-muted] [--debug]
 ```
 
 ## `--settings PATH`
@@ -159,6 +159,41 @@ A failed pull (or a failed stash) shows this same menu again for the same repo i
 moving on — the usual cause is local changes in the way, and *Stash changes and pull* is the
 answer to it. *Skip* leaves the repo alone.
 
+## `--push-ask`
+
+The third question: which repos have **committed** work their remote does not have yet? Walks
+the configured folders and shows a menu — **Push / Pull / Skip / Mute repo / Abort** — for
+each repo that is *ahead* of its upstream, as the walk finds it. Needs no `commit_command`.
+
+No fetch: "ahead" is measured against the local tracking ref, so the walk is as fast as the
+plain scan and costs no network. A push the remote rejects (it moved on) re-shows the menu,
+where *Pull* runs the same `git pull --no-edit` as the other modes.
+
+A branch with commits but no upstream at all is reported too, as long as the repo has a
+remote; its Push entry reads `Push -u origin main` and runs exactly that. Repos with no
+remote, a detached HEAD or an unborn branch are skipped silently.
+
+Muted repos and repos settled within `min_visit_age` are dropped before any git call and
+summarised as `Skipped N repo(s) without checking`. Its mutes and visits live in tables of
+their own (`push_mutes`, `push_visits`), separate from both other modes. Needs an
+interactive terminal.
+
+**See [PUSH_ASK.md](PUSH_ASK.md) for the full description of the mode and its menu.**
+
+```bat
+uv run python main.py --push-ask
+```
+
+```
+D:\GIT\some\repo  -  2 commit(s) ahead of origin/main
+
+ > Push
+   Pull
+   Skip
+   Mute repo
+   Abort
+```
+
 ## `--all`
 
 Ignore every skip filter for this run: `--commit-ask` scans and prompts for all repos,
@@ -167,10 +202,10 @@ including muted ones, ones settled within `min_visit_age`, and ones changed with
 not what is written. Nothing is un-muted — the stored mutes are simply not honored this run,
 so the next run without `--all` skips them again.
 
-With `--pull-ask` it likewise ignores that mode's own mutes and visits, so every repo is
-fetched again.
+With `--pull-ask` and `--push-ask` it likewise ignores that mode's own mutes and visits, so
+every repo is checked again.
 
-Only meaningful together with `--commit-ask` or `--pull-ask`; on its own the report already
+Only meaningful together with an ask-mode; on its own the report already
 lists every repo.
 With `--limit N`, `N` now counts all repos, since none are held back.
 
@@ -211,12 +246,12 @@ D:\GIT\some\repo  -  12 line-ending-only change(s)
 
 ## `--list-muted`
 
-List repos currently muted (via either ask-mode's *Mute repo* action) and the date each is
+List repos currently muted (via any ask-mode's *Mute repo* action) and the date each is
 muted until, soonest expiry first, then exit. Does not scan and does not need a
 `commit_command`. Expired mutes are not shown. Prints `No muted repos.` when none are
 active anywhere.
 
-The two modes keep separate mutes, so both are listed under a heading each.
+The modes keep separate mutes, so each is listed under a heading of its own.
 
 ```bat
 uv run python main.py --list-muted
@@ -226,6 +261,8 @@ uv run python main.py --list-muted
 Commit mutes (--commit-ask):
   D:\GIT\some\repo  -  muted until 2026-08-31 08:41
 Pull mutes (--pull-ask):
+  No muted repos.
+Push mutes (--push-ask):
   No muted repos.
 ```
 

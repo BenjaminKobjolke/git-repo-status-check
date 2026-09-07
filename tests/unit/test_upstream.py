@@ -82,3 +82,9 @@ def test_header_notes_uncommitted_files(monkeypatch: pytest.MonkeyPatch) -> None
 def test_header_omits_the_dirty_note_when_clean(monkeypatch: pytest.MonkeyPatch) -> None:
     _stub_git(monkeypatch)
     assert "uncommitted" not in _scan(monkeypatch, [Path("repo0")])[0].header()
+
+
+def test_upstream_counts_parses_behind_and_ahead() -> None:
+    assert upstream.upstream_counts("2\t3\n") == (2, 3)
+    assert upstream.upstream_counts(None) == (0, 0)
+    assert upstream.upstream_counts("nonsense\n") == (0, 0)

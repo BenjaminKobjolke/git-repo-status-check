@@ -1,4 +1,4 @@
-"""The repo actions both ask-modes offer: pull, stash, rename.
+"""The repo actions the ask-modes share: pull, push, stash, rename.
 
 ``--pull-ask`` and the ``--commit-ask`` submenu run the same three, so they live in one
 place — a second copy would be the only way for the two modes to disagree. A module of
@@ -14,25 +14,40 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .constants import RENAME_PREFIX_NOT_CONFIGURED, STASH_MESSAGE_FORMAT
+from .constants import GIT_PULL, RENAME_PREFIX_NOT_CONFIGURED, STASH_MESSAGE_FORMAT
+
+
+def _run_streaming(path: Path, args: tuple[str, ...], label: str) -> bool:
+    """Run ``git <args>`` in the repo dir with live output; report under ``label``.
+
+    Streams (not captured like ``scanner.run_git``) so the user sees progress and any
+    credential prompt. Failures surface as-is; the caller decides what to offer next.
+    """
+    result = subprocess.run(("git", "-C", str(path), *args), check=False)
+    if result.returncode == 0:
+        print(f"  OK ({label}): {path}")
+        return True
+    print(f"  FAILED ({label}, exit {result.returncode}): {path}")
+    return False
 
 
 def run_pull(path: Path) -> bool:
-    """Run ``git pull`` in the repo dir with live output; report the result. True on success.
+    """``git pull --no-edit`` with live output; True on success.
 
-    Streams (not captured like ``scanner.run_git``) so the user sees fetch/merge progress.
-    Failures surface as-is; the caller decides what to offer next. The single pull in the
-    codebase — ``--pull-ask`` and the ``--commit-ask`` submenu both call this one.
-
-    ``--no-edit`` because a merge commit otherwise opens the git editor over the menu, and
-    the default merge message is what would be typed anyway.
+    The single pull in the codebase — every ask-mode calls this one. ``--no-edit`` because a
+    merge commit otherwise opens the git editor over the menu, and the default merge message
+    is what would be typed anyway.
     """
-    result = subprocess.run(("git", "-C", str(path), "pull", "--no-edit"), check=False)
-    if result.returncode == 0:
-        print(f"  OK (pull): {path}")
-        return True
-    print(f"  FAILED (pull, exit {result.returncode}): {path}")
-    return False
+    return _run_streaming(path, GIT_PULL, "pull")
+
+
+def run_push(path: Path, push_args: tuple[str, ...]) -> bool:
+    """``git <push_args>`` with live output; True on success.
+
+    ``push_args`` comes from ``RepoAhead.push_args`` -- a plain push, or ``push -u`` with the
+    remote and branch when the branch has no upstream yet.
+    """
+    return _run_streaming(path, push_args, "push")
 
 
 def run_stash(path: Path) -> bool:

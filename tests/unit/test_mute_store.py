@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from git_repo_status_check.mute_store import MuteStore, PullMute, ScanSkip, muted_label
+from git_repo_status_check.mute_store import (
+    MuteStore,
+    PullMute,
+    PushMute,
+    PushVisit,
+    ScanSkip,
+    muted_label,
+)
 
 _REPO_PATH = Path("D:/GIT/foo")
 _REPO = str(_REPO_PATH)
@@ -85,6 +92,16 @@ def test_pull_mutes_are_invisible_to_commit_mutes(tmp_path: Path) -> None:
     commit_store.mute("D:/GIT/bar", muted_until=999.0)
     assert pull_store.muted_until("D:/GIT/bar", now=0.0) is None
     assert [r.path for r in pull_store.list_active(now=0.0)] == ["D:/GIT/foo"]
+
+
+def test_push_tables_are_invisible_to_the_other_modes(tmp_path: Path) -> None:
+    db = tmp_path / "mutes.db"
+    push_store = MuteStore(db, PushMute, PushVisit)
+    push_store.mute("D:/GIT/foo", muted_until=999.0)
+    push_store.record_visit("D:/GIT/foo", visited_at=1.0)
+    for other in (MuteStore(db), MuteStore(db, PullMute)):
+        assert other.muted_until("D:/GIT/foo", now=0.0) is None
+        assert other.last_visit("D:/GIT/foo") is None
 
 
 def test_muted_label_reports_the_remaining_time(store: MuteStore) -> None:

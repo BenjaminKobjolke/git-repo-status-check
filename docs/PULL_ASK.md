@@ -139,4 +139,5 @@ stored credentials.
 - [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md) — every flag.
 - [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) — the uncommitted-changes menu, whose *Pull*
   submenu entry runs the same pull as this mode.
+- [PUSH_ASK.md](PUSH_ASK.md) — the opposite direction: commits the remote does not have.
 - [SCANNING.md](SCANNING.md) — how repos are found.

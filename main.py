@@ -17,13 +17,22 @@ from git_repo_status_check.constants import (
     MUTED_NONE,
     MUTED_SECTION_COMMIT,
     MUTED_SECTION_PULL,
+    MUTED_SECTION_PUSH,
     SKIP_LABEL_RECENT,
     SKIPPED_WORK_SCANNING,
 )
 from git_repo_status_check.duration import format_duration
 from git_repo_status_check.line_endings import fix_interactive
 from git_repo_status_check.models import RepoStatus
-from git_repo_status_check.mute_store import MuteStore, PullMute, PullVisit, ScanSkip
+from git_repo_status_check.mute_store import (
+    MuteStore,
+    PullMute,
+    PullVisit,
+    PushMute,
+    PushVisit,
+    ScanSkip,
+)
+from git_repo_status_check.pusher import push_interactive
 from git_repo_status_check.reporter import clear_progress, progress, report, report_skipped
 from git_repo_status_check.scanner import scan_all
 from git_repo_status_check.settings import Settings, SettingsError, resolve_settings_path
@@ -48,6 +57,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Fetch every repo and show a menu for each one behind its upstream.",
     )
     parser.add_argument(
+        "--push-ask",
+        action="store_true",
+        help="Show a menu for each repo with commits its upstream does not have yet.",
+    )
+    parser.add_argument(
         "--fix-line-endings",
         action="store_true",
         help="Offer to set core.autocrlf per repo whose only changes are line-ending noise.",
@@ -55,23 +69,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="With --commit-ask/--pull-ask: prompt for every repo, ignoring mutes/visits/recency.",
+        help="With an ask-mode: prompt for every repo, ignoring mutes/visits/recency.",
     )
     parser.add_argument(
         "--list-muted",
         action="store_true",
-        help="List repos muted via --commit-ask / --pull-ask (and until when), then exit.",
+        help="List repos muted via any ask-mode (and until when), then exit.",
     )
     args = parser.parse_args(argv)
 
     AppLogger.configure(debug=args.debug)
 
-    # Both stores are built here, not per branch: --list-muted returns before settings are
-    # loaded, so the pull store has to exist by then to be listed alongside the commit one.
+    # All stores are built here, not per branch: --list-muted returns before settings are
+    # loaded, so every mode's store has to exist by then to be listed.
     store = MuteStore(_PROJECT_ROOT / MUTE_DB_FILE)
     pull_store = MuteStore(_PROJECT_ROOT / MUTE_DB_FILE, PullMute, PullVisit)
+    push_store = MuteStore(_PROJECT_ROOT / MUTE_DB_FILE, PushMute, PushVisit)
     if args.list_muted:
-        _list_muted(store, pull_store)
+        _list_muted(
+            (
+                (MUTED_SECTION_COMMIT, store),
+                (MUTED_SECTION_PULL, pull_store),
+                (MUTED_SECTION_PUSH, push_store),
+            )
+        )
         return 0
 
     settings_path = resolve_settings_path(args.settings, _PROJECT_ROOT)
@@ -91,6 +112,11 @@ def main(argv: list[str] | None = None) -> int:
     # mode does its own walk (it has to fetch) rather than consuming the normal scan.
     if args.pull_ask:
         pull_interactive(settings, pull_store, prompt_all=args.all)
+        return 0
+
+    # Same shape as --pull-ask, the other way round: commits the upstream lacks.
+    if args.push_ask:
+        push_interactive(settings, push_store, prompt_all=args.all)
         return 0
 
     # Fail before scanning (which can be slow) if --commit-ask can't be honored.
@@ -159,13 +185,12 @@ def build_skip_reason(settings: Settings) -> Callable[[RepoStatus], str | None]:
     return build
 
 
-def _list_muted(store: MuteStore, pull_store: MuteStore) -> None:
-    """Print both ask-modes' active mutes (soonest expiry first), section by section.
+def _list_muted(sections: tuple[tuple[str, MuteStore], ...]) -> None:
+    """Print every ask-mode's active mutes (soonest expiry first), section by section.
 
-    The modes keep separate mute tables, so listing only one would quietly hide the other.
+    The modes keep separate mute tables, so listing only one would quietly hide the others.
     """
     now = time.time()
-    sections = ((MUTED_SECTION_COMMIT, store), (MUTED_SECTION_PULL, pull_store))
     if not any(source.list_active(now) for _, source in sections):
         print(MUTED_NONE)
         return

@@ -11,8 +11,10 @@ from pathlib import Path
 
 import pytest
 
+from git_repo_status_check.pusher import RepoAhead, measure_ahead
+from git_repo_status_check.repo_actions import run_push
 from git_repo_status_check.settings import Settings
-from git_repo_status_check.upstream import walk_upstream
+from git_repo_status_check.upstream import walk_found, walk_upstream
 
 from .helpers import _GIT_ENV_ARGS, _git, _init_repo
 
@@ -75,3 +77,55 @@ def test_dirty_clone_still_reports_its_uncommitted_count(tmp_path: Path) -> None
     assert len(results) == 1
     assert results[0].dirty_count == 1
     assert "1 uncommitted" in results[0].header()
+
+
+def _ahead_of(root: Path) -> list[RepoAhead]:
+    return list(walk_found(Settings(folders=(root,)), measure_ahead))
+
+
+def test_clone_ahead_of_its_origin_is_reported_for_push(tmp_path: Path) -> None:
+    origin = _init_repo(tmp_path / "origin")
+    clone = _clone(origin, tmp_path / "roots" / "clone")
+    _commit_more(clone, "local work")
+
+    results = _ahead_of(tmp_path / "roots")
+
+    assert len(results) == 1
+    assert results[0].path == clone
+    assert results[0].ahead == 1
+    assert results[0].upstream is not None
+    assert results[0].push_args() == ("push",)
+
+
+def test_up_to_date_clone_has_nothing_to_push(tmp_path: Path) -> None:
+    origin = _init_repo(tmp_path / "origin")
+    _clone(origin, tmp_path / "roots" / "clone")
+    assert _ahead_of(tmp_path / "roots") == []
+
+
+def test_branch_never_pushed_offers_push_u(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path / "roots" / "fresh")
+    _git(repo, "remote", "add", "origin", (tmp_path / "nowhere").as_uri())
+
+    results = _ahead_of(tmp_path / "roots")
+
+    assert len(results) == 1
+    assert results[0].upstream is None
+    assert results[0].push_args() == ("push", "-u", "origin", "main")
+
+
+def test_repo_without_a_remote_has_nothing_to_push(tmp_path: Path) -> None:
+    _init_repo(tmp_path / "roots" / "solo")
+    assert _ahead_of(tmp_path / "roots") == []
+
+
+def test_push_sends_local_commits_to_a_bare_origin(tmp_path: Path) -> None:
+    # Bare: a non-bare origin refuses pushes to its checked-out branch.
+    seed = _init_repo(tmp_path / "seed")
+    bare = tmp_path / "origin.git"
+    _git(tmp_path, "clone", "--bare", *_GIT_ENV_ARGS, seed.as_uri(), bare.name)
+    clone = _clone(bare, tmp_path / "roots" / "clone")
+    _commit_more(clone, "local work")
+
+    assert run_push(clone, ("push",)) is True
+    assert _git(bare, "rev-parse", "main") == _git(clone, "rev-parse", "HEAD")

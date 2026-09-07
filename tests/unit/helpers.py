@@ -11,10 +11,23 @@ from pathlib import Path
 
 import pytest
 
-from git_repo_status_check import menu, upstream
+from git_repo_status_check import menu, pusher, scanner, upstream
 from git_repo_status_check.models import RepoStatus
 from git_repo_status_check.mute_store import MuteStore
 from git_repo_status_check.settings import Settings
+
+
+def _one_repo_console(monkeypatch: pytest.MonkeyPatch, repo: str = "repo0") -> None:
+    """A TTY, a walk of exactly one repo, and a menu that always answers Skip.
+
+    The hold-back tests of both upstream modes start from this; only the git stub and the
+    mode's entry point differ. ``find_repos`` is the stub point rather than the walk itself,
+    so the skip filter and the progress line stay in the test.
+    """
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(scanner, "find_repos", lambda *_a, **_k: iter([Path(repo)]))
+    monkeypatch.setattr(menu, "choose", lambda _items, _title: "s")
+    monkeypatch.setattr(menu, "pause", lambda: None)
 
 
 def _statuses(n: int) -> list[RepoStatus]:
@@ -78,11 +91,11 @@ def _run_pull(
     """Drive ``pull_interactive`` over ``repos`` with scripted menu answers; return pulls."""
     pulled: list[Path] = []
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(upstream, "walk_upstream", lambda *_a, **_k: iter(repos))
+    monkeypatch.setattr(upstream, "walk_found", lambda *_a, **_k: iter(repos))
+
     def _pull(path: Path) -> bool:
         pulled.append(path)
         return len(pulled) > fail_pulls
-
 
     monkeypatch.setattr(upstream, "run_pull", _pull)
     it = iter(choices)
@@ -90,3 +103,40 @@ def _run_pull(
     monkeypatch.setattr(menu, "pause", lambda: None)
     upstream.pull_interactive(Settings(folders=(Path("root"),)), store, prompt_all=prompt_all)
     return pulled
+
+
+def _ahead(
+    path: str, upstream: str | None = "origin/main", dirty_count: int = 0
+) -> pusher.RepoAhead:
+    return pusher.RepoAhead(
+        path=Path(path),
+        ahead=1,
+        dirty_count=dirty_count,
+        upstream=upstream,
+        branch="main",
+        remote="" if upstream else "origin",
+    )
+
+
+def _run_push(
+    monkeypatch: pytest.MonkeyPatch,
+    store: MuteStore,
+    repos: list[pusher.RepoAhead],
+    *choices: str,
+    fail_pushes: int = 0,
+) -> list[tuple[Path, tuple[str, ...]]]:
+    """Drive ``push_interactive`` over ``repos`` with scripted answers; return the pushes."""
+    pushed: list[tuple[Path, tuple[str, ...]]] = []
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(upstream, "walk_found", lambda *_a, **_k: iter(repos))
+
+    def _push(path: Path, push_args: tuple[str, ...]) -> bool:
+        pushed.append((path, push_args))
+        return len(pushed) > fail_pushes
+
+    monkeypatch.setattr(pusher, "run_push", _push)
+    it = iter(choices)
+    monkeypatch.setattr(menu, "choose", lambda _items, _title: next(it))
+    monkeypatch.setattr(menu, "pause", lambda: None)
+    pusher.push_interactive(Settings(folders=(Path("root"),)), store)
+    return pushed

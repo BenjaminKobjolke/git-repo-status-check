@@ -12,11 +12,11 @@ from pathlib import Path
 
 import pytest
 
-from git_repo_status_check import menu, scanner, upstream
+from git_repo_status_check import menu, upstream
 from git_repo_status_check.mute_store import MuteStore
 from git_repo_status_check.settings import Settings
 
-from .helpers import _behind, _run_pull
+from .helpers import _behind, _one_repo_console, _run_pull
 from .helpers import _stub_upstream_git as _stub_git
 
 
@@ -62,11 +62,8 @@ def _held_back(
     is the other way a repo ends up recorded as checked.
     """
     calls = _stub_git(monkeypatch, upstream_name=upstream_name, counts=counts)
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(scanner, "find_repos", lambda *_a, **_k: iter([Path("repo0")]))
+    _one_repo_console(monkeypatch)
     monkeypatch.setattr(upstream, "run_pull", lambda _path: True)
-    monkeypatch.setattr(menu, "choose", lambda _items, _title: "s")
-    monkeypatch.setattr(menu, "pause", lambda: None)
     settings = Settings(folders=(Path("root"),), min_visit_age=min_visit_age)
     upstream.pull_interactive(settings, store, prompt_all=prompt_all)
     return calls
@@ -138,7 +135,7 @@ def test_pull_interactive_without_a_tty_does_nothing(
 ) -> None:
     monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
     monkeypatch.setattr(
-        upstream, "walk_upstream", lambda *_a, **_k: pytest.fail("must not fetch without a TTY")
+        upstream, "walk_found", lambda *_a, **_k: pytest.fail("must not fetch without a TTY")
     )
     upstream.pull_interactive(Settings(folders=(Path("root"),)), pull_store)
     assert "interactive terminal" in capsys.readouterr().out
@@ -179,8 +176,7 @@ def test_abort_still_settles_the_repos_that_needed_nothing(
 ) -> None:
     """Abort records nothing for the repo it was asked about, but an up-to-date one was
     already settled during the fetch, so the next run leaves it alone."""
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(scanner, "find_repos", lambda *_a, **_k: iter([Path("clean")]))
+    _one_repo_console(monkeypatch, "clean")
     _stub_git(monkeypatch, counts="0\t0\n")
     monkeypatch.setattr(menu, "choose", lambda _items, _title: "a")
     upstream.pull_interactive(Settings(folders=(Path("root"),)), pull_store)

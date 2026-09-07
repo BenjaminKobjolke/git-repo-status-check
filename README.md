@@ -38,7 +38,7 @@ file manager its `e` action opens a repo in (`[[REPO_PATH]]` is replaced with th
 prefix its `r` action renames a repo folder with (archiving it out of the next scan), and
 `min_modified_age` holds `--commit-ask` back from repos touched within that window
 (someone is probably still working there), and `min_visit_age` (default `1h`, `null` to
-disable) stops both ask-modes re-checking a repo they already settled — see
+disable) stops the ask-modes re-checking a repo they already settled — see
 [docs/SETTINGS.md](docs/SETTINGS.md).
 
 Each entry of `folders` is a root folder. The scanner walks each root recursively, stops descending
@@ -56,13 +56,14 @@ Shortcuts for the interactive menus (all forward extra arguments, e.g. `--limit 
 start_commit-ask.bat
 start_commit-ask_all.bat
 start_pull-ask.bat
+start_push-ask.bat
 ```
 
 or directly:
 
 ```bat
-uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] [--all]
-                      [--fix-line-endings] [--list-muted] [--debug]
+uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] [--push-ask]
+                      [--all] [--fix-line-endings] [--list-muted] [--debug]
 ```
 
 - `--settings PATH` — use a settings file other than `settings.json` in the project root
@@ -99,17 +100,25 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] 
   counts as settled once its menu was shown to you (Ctrl-C and *Abort* included), or when
   the fetch found nothing to pull. Its mutes and visits are separate from `--commit-ask`'s.
   See [docs/PULL_ASK.md](docs/PULL_ASK.md).
-- `--all` — with `--commit-ask` or `--pull-ask`, prompt for every repo, ignoring mutes,
+- `--push-ask` — the third question: which repos have *committed* work the remote does not
+  have yet? Shows a menu (**Push / Pull / Skip / Mute repo / Abort**) for each repo ahead of
+  its upstream. No fetch — "ahead" is measured against the local tracking ref, so it is as
+  fast as the plain scan; a rejected push re-shows the menu with *Pull* one entry away. A
+  branch with commits but no upstream is offered as `Push -u <remote> <branch>`. Same
+  `min_visit_age` hold-back and mutes as the other modes, in tables of its own.
+  See [docs/PUSH_ASK.md](docs/PUSH_ASK.md).
+- `--all` — with any ask-mode, prompt for every repo, ignoring mutes,
   `min_visit_age` and `min_modified_age`. Mutes are kept, just not honored for this run.
 - `--fix-line-endings` — offer to repair each repo whose only changes are line-ending
   noise, by setting its local `core.autocrlf`. Nothing is committed or rewritten on disk.
-- `--list-muted` — list repos currently muted (commit mutes and pull mutes, in separate
+- `--list-muted` — list repos currently muted (commit, pull and push mutes, in separate
   sections) and the date each is muted until, then exit.
 - `--debug` — enable diagnostic logging.
 
 See [docs/COMMAND_LINE_ARGUMENTS.md](docs/COMMAND_LINE_ARGUMENTS.md),
 [docs/COMMIT_ASK_MENU.md](docs/COMMIT_ASK_MENU.md) (the `--commit-ask` menu),
 [docs/PULL_ASK.md](docs/PULL_ASK.md) (the `--pull-ask` mode),
+[docs/PUSH_ASK.md](docs/PUSH_ASK.md) (the `--push-ask` mode),
 [docs/SETTINGS.md](docs/SETTINGS.md), and [docs/CODEX.md](docs/CODEX.md) (commit-with-Codex
 examples) for details.
 
@@ -162,6 +171,6 @@ helper, so nothing else drives a real menu. Run it by hand after touching
 
 ## Dependencies
 
-Runtime: `SQLAlchemy` (stores `--commit-ask` and `--pull-ask` mutes in a SQLite `mutes.db`) and
+Runtime: `SQLAlchemy` (stores the ask-modes' mutes and visits in a SQLite `mutes.db`) and
 `pick[blessed]` (the arrow-key menus). Everything else is the Python standard
 library. Dev tooling: `ruff`, `mypy`, `pytest`.

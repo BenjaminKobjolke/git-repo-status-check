@@ -59,6 +59,12 @@ class PullMute(MuteRow):
     __tablename__ = "pull_mutes"
 
 
+class PushMute(MuteRow):
+    """One repo muted for ``--push-ask`` — its own table, like the pull mutes."""
+
+    __tablename__ = "push_mutes"
+
+
 class VisitRow(Base):
     """Shared shape of a visit row: a repo key and when its menu was last shown."""
 
@@ -78,6 +84,12 @@ class PullVisit(VisitRow):
     """The last time ``--pull-ask`` showed this repo's menu; its own table, like the mutes."""
 
     __tablename__ = "pull_visits"
+
+
+class PushVisit(VisitRow):
+    """The last time ``--push-ask`` showed this repo's menu; its own table, like the mutes."""
+
+    __tablename__ = "push_visits"
 
 
 @dataclass(frozen=True)

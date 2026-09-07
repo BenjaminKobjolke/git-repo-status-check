@@ -116,8 +116,8 @@ uv run python main.py --commit-ask
 ## `--pull-ask`
 
 Fetch every repo under the configured folders and show a menu — **Pull / Stash changes and
-pull / Rename repo / Skip / Mute repo / Abort** — for each one that is *behind* its upstream, as the walk
-finds it. Repos with no tracking branch (detached HEAD, unpushed branch, no remote) are
+pull / More actions... / Skip / Mute repo / Abort** — for each one that is *behind* its upstream,
+as the walk finds it. Repos with no tracking branch (detached HEAD, unpushed branch, no remote) are
 skipped silently.
 
 This is the opposite question from the rest of the tool: `--commit-ask` is about local
@@ -144,7 +144,7 @@ D:\GIT\some\repo  -  4 commit(s) behind origin/main  -  3 uncommitted
 
  > Pull
    Stash changes and pull
-   Rename repo
+   More actions...
    Skip
    Mute repo
    Abort
@@ -152,8 +152,10 @@ D:\GIT\some\repo  -  4 commit(s) behind origin/main  -  3 uncommitted
 
 *Stash changes and pull* is offered only on a repo with local changes: it runs the same
 `git stash push -u` as the `--commit-ask` submenu, then pulls. A failed stash cancels the
-pull. *Rename repo* is offered only when `rename_prefix` is configured: same rename as that
-submenu (`<rename_prefix><name>`), and the renamed repo is not pulled.
+pull. *More actions...* opens a submenu — *Open in file explorer* / *Rename repo* /
+*Stash changes* / *Back* — with the same actions as the `--commit-ask` submenu: the explorer
+needs `file_explorer`, the rename needs `rename_prefix` (and the renamed repo is not pulled),
+and the plain stash puts the changes aside without pulling.
 
 A failed pull (or a failed stash) shows this same menu again for the same repo instead of
 moving on — the usual cause is local changes in the way, and *Stash changes and pull* is the

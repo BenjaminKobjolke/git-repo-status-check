@@ -248,17 +248,23 @@ PULL_HEADER = "{path}  -  {behind} commit(s) behind {upstream}"
 PULL_HEADER_DIRTY = "  -  {count} uncommitted"
 PULL_MENU = (
     ("Pull", "p"),
+    ("More actions...", "more"),  # not "m": that is Mute here
     ("Skip", "s"),
     ("Mute repo", "m"),
     ("Abort", "a"),
 )
-# Spliced in after Pull by ``upstream.pull_menu``, but only for a repo with local changes:
+# Spliced in after Pull by ``puller.pull_menu``, but only for a repo with local changes:
 # the dirty tree is what makes a plain pull fail, so stashing is the way through it. Hidden
 # on a clean repo rather than shown and failing -- there would be nothing to stash.
 PULL_MENU_STASH = ("Stash changes and pull", "t")
-# Spliced in after the stash entry, but only when a ``rename_prefix`` is configured: the same
-# archive-it rename the --commit-ask submenu offers, for a repo you would rather stop pulling.
-PULL_MENU_RENAME = ("Rename repo", "r")
+# The --pull-ask submenu (title: MORE_MENU_TITLE): the --commit-ask one minus the entries
+# that only make sense for a commit (file ages, list) or sit on the top menu here.
+PULL_MORE_MENU = (
+    ("Open in file explorer", "e"),
+    ("Rename repo", "r"),
+    ("Stash changes", "s"),
+    ("Back", "b"),
+)
 
 # --push-ask prompts and labels. No fetch in this mode, so "ahead" is against the local
 # tracking ref; the dirty suffix is PULL_HEADER_DIRTY, shared.

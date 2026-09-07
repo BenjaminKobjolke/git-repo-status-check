@@ -9,6 +9,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,14 +19,12 @@ from .constants import (
     COMMIT_HEADER,
     COMMIT_MENU,
     COMMIT_NEEDS_TTY,
-    EXPLORER_NOT_CONFIGURED,
     GIT_REMOTE_FETCH_SUFFIX,
     GIT_REMOTE_VERBOSE,
     MENU_ABORTED,
     MORE_MENU,
     MORE_MENU_TITLE,
     NO_REMOTE_CONFIGURED,
-    REPO_PATH_TOKEN,
 )
 from .models import RepoStatus
 from .mute_store import MuteStore
@@ -46,8 +45,8 @@ def commit_interactive(
 
     *Commit* runs the command in the repo dir, *Skip* moves on, *Abort* stops the whole
     loop, and *More actions...* opens a submenu
-    (age of files / list files / url / pull / explorer / rename / stash / mute); the pull
-    the stash and the rename come from ``repo_actions``, shared with
+    (age of files / list files / url / pull / explorer / rename / stash / mute); the pull,
+    the explorer, the stash and the rename come from ``repo_actions``, shared with
     ``--pull-ask``.
     The submenu's explorer entry needs ``file_explorer`` and its rename entry needs
     ``rename_prefix``; without those they report and do nothing.
@@ -110,12 +109,12 @@ def _more_menu(path: Path, file_explorer: str | None, rename_prefix: str | None)
     a stash leaves nothing to commit here, so both return 'skip'.
     """
     # Built per call because each closes over this repo's path and the explorer command.
-    printing_actions = {
+    printing_actions: dict[str, Callable[[], object]] = {
         "a": lambda: _list_ages(path),
         "l": lambda: _list_files(path),
         "u": lambda: _list_remotes(path),
         "p": lambda: repo_actions.run_pull(path),
-        "e": lambda: _open_explorer(file_explorer, path),
+        "e": lambda: repo_actions.run_explorer(path, file_explorer),
     }
     while True:
         choice = menu.choose(MORE_MENU, MORE_MENU_TITLE.format(path=path))
@@ -202,20 +201,3 @@ def _run_commit(command: str, status: RepoStatus) -> None:
         print(f"  OK: {status.path}")
     else:
         print(f"  FAILED (exit {result.returncode}): {status.path}")
-
-
-def _open_explorer(command: str | None, path: Path) -> None:
-    """Launch the configured file manager on the repo, detached.
-
-    Fire and forget (``Popen``, not ``subprocess.run``): a file manager stays open for as
-    long as the user wants it, so waiting on it would freeze the commit loop.
-    """
-    if not command:
-        print(EXPLORER_NOT_CONFIGURED)
-        return
-    if REPO_PATH_TOKEN in command:
-        launch = command.replace(REPO_PATH_TOKEN, str(path))
-    else:
-        launch = f'{command} "{path}"'
-    subprocess.Popen(launch, shell=True, cwd=str(path))
-    print(f"  Opened: {path}")

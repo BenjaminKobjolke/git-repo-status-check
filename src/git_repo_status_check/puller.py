@@ -10,51 +10,50 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 
 from . import menu
 from .constants import (
     GIT_TERMINAL_PROMPT_ENV,
     GIT_TERMINAL_PROMPT_OFF,
     MENU_ABORTED,
+    MORE_MENU_TITLE,
     PULL_MENU,
-    PULL_MENU_RENAME,
     PULL_MENU_STASH,
+    PULL_MORE_MENU,
     PULL_NEEDS_TTY,
     PULL_NONE_BEHIND,
     SKIPPED_WORK_FETCHING,
 )
 from .mute_store import MuteStore
-from .repo_actions import run_pull, run_rename, run_stash
+from .repo_actions import run_explorer, run_pull, run_rename, run_stash
 from .settings import Settings
 from .upstream import AskMode, RepoUpstream, ask_interactive, measure
 
 
-def pull_menu(dirty_count: int, rename_prefix: str | None = None) -> tuple[tuple[str, str], ...]:
-    """``PULL_MENU`` with the stash and rename entries spliced in after *Pull*, when they apply.
+def pull_menu(dirty_count: int) -> tuple[tuple[str, str], ...]:
+    """``PULL_MENU`` with the stash-and-pull entry spliced in after *Pull*, when it applies.
 
     Built per repo rather than being a constant: stashing is only useful — and only works —
-    on a repo with local changes, and renaming needs a ``rename_prefix`` to rename to. An
-    entry that cannot work is left out rather than shown and failing.
+    on a repo with local changes. On a clean one the entry is left out rather than shown
+    and failing.
     """
+    if not dirty_count:
+        return PULL_MENU
     pull, *rest = PULL_MENU
-    extra: list[tuple[str, str]] = []
-    if dirty_count:
-        extra.append(PULL_MENU_STASH)
-    if rename_prefix:
-        extra.append(PULL_MENU_RENAME)
-    return (pull, *extra, *rest)
+    return (pull, PULL_MENU_STASH, *rest)
 
 
-def prompt_repo(found: RepoUpstream, store: MuteStore, rename_prefix: str | None = None) -> bool:
+def prompt_repo(found: RepoUpstream, store: MuteStore, settings: Settings) -> bool:
     """Ask about one repo until it is settled; False when the user chose Abort.
 
-    The menu comes back after a failed pull (or a failed stash, or a refused rename) instead
-    of the walk moving on: the usual failure is local changes standing in the way, and the
-    answer to it — stash, then pull — is an entry on the same menu.
+    The menu comes back after a failed pull (or a failed stash) instead of the walk moving
+    on: the usual failure is local changes standing in the way, and the answer to it —
+    stash, then pull — is an entry on the same menu.
     """
     dirty = found.dirty_count
     while True:
-        choice = menu.choose(pull_menu(dirty, rename_prefix), found.header())
+        choice = menu.choose(pull_menu(dirty), found.header())
         if choice == "a":
             print(MENU_ABORTED)
             return False
@@ -63,11 +62,13 @@ def prompt_repo(found: RepoUpstream, store: MuteStore, rename_prefix: str | None
         if choice == "m":
             store.mute(str(found.path), time.time() + menu.ask_timeframe())
             return True
-        # Renamed out of the way: there is no longer a repo at this path to pull into.
-        if choice == "r":
-            if run_rename(found.path, rename_prefix):
+        if choice == "more":
+            sub = _more_menu(found.path, settings)
+            # Renamed out of the way: there is no longer a repo at this path to pull into.
+            if sub == "renamed":
                 return True
-            menu.pause()
+            if sub == "stashed":
+                dirty = 0
             continue
         if choice == "t":
             if not run_stash(found.path):
@@ -82,9 +83,33 @@ def prompt_repo(found: RepoUpstream, store: MuteStore, rename_prefix: str | None
             return True
 
 
+def _more_menu(path: Path, settings: Settings) -> str:
+    """Submenu: explorer / rename / stash / back. Returns 'renamed', 'stashed' or 'back'.
+
+    The explorer entry prints and re-prompts; so do a refused rename and a failed stash.
+    A stash that worked goes back to the top menu: pulling stays a separate decision, and
+    the clean tree drops *Stash changes and pull* from it.
+    """
+    while True:
+        choice = menu.choose(PULL_MORE_MENU, MORE_MENU_TITLE.format(path=path))
+        if choice == "e":
+            run_explorer(path, settings.file_explorer)
+        elif choice == "r":
+            if run_rename(path, settings.rename_prefix):
+                return "renamed"
+        elif choice == "s":
+            if run_stash(path):
+                menu.pause()
+                return "stashed"
+        else:
+            return "back"
+        # The next menu repaints the whole screen, so hold the output until read.
+        menu.pause()
+
+
 PULL_MODE: AskMode[RepoUpstream] = AskMode(
     measure=measure,
-    prompt=lambda found, store, settings: prompt_repo(found, store, settings.rename_prefix),
+    prompt=prompt_repo,
     needs_tty=PULL_NEEDS_TTY,
     none_found=PULL_NONE_BEHIND,
     work=SKIPPED_WORK_FETCHING,

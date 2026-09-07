@@ -1,6 +1,6 @@
-"""The repo actions the ask-modes share: pull, push, stash, rename.
+"""The repo actions the ask-modes share: pull, push, stash, rename, open in explorer.
 
-``--pull-ask`` and the ``--commit-ask`` submenu run the same three, so they live in one
+``--pull-ask`` and the ``--commit-ask`` submenu run the same ones, so they live in one
 place — a second copy would be the only way for the two modes to disagree. A module of
 their own rather than one mode importing the other: neither ``committer`` nor ``upstream``
 depends on the other for them.
@@ -14,7 +14,13 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .constants import GIT_PULL, RENAME_PREFIX_NOT_CONFIGURED, STASH_MESSAGE_FORMAT
+from .constants import (
+    EXPLORER_NOT_CONFIGURED,
+    GIT_PULL,
+    RENAME_PREFIX_NOT_CONFIGURED,
+    REPO_PATH_TOKEN,
+    STASH_MESSAGE_FORMAT,
+)
 
 
 def _run_streaming(path: Path, args: tuple[str, ...], label: str) -> bool:
@@ -93,3 +99,20 @@ def run_rename(path: Path, prefix: str | None) -> bool:
         return False
     print(f"  Renamed: {path.name} -> {target.name}")
     return True
+
+
+def run_explorer(path: Path, command: str | None) -> None:
+    """Launch the configured file manager on the repo, detached.
+
+    Fire and forget (``Popen``, not ``subprocess.run``): a file manager stays open for as
+    long as the user wants it, so waiting on it would freeze the menu loop.
+    """
+    if not command:
+        print(EXPLORER_NOT_CONFIGURED)
+        return
+    if REPO_PATH_TOKEN in command:
+        launch = command.replace(REPO_PATH_TOKEN, str(path))
+    else:
+        launch = f'{command} "{path}"'
+    subprocess.Popen(launch, shell=True, cwd=str(path))
+    print(f"  Opened: {path}")

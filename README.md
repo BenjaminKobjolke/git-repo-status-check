@@ -89,10 +89,10 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] 
   Requires a non-empty `commit_command` (aborts before scanning if unset)
   and an interactive terminal.
 - `--pull-ask` — the other direction: fetch every repo and show a menu
-  (**Pull / Stash changes and pull / Rename repo / Skip / Mute repo / Abort**) for each one
-  that is *behind* its upstream. The stash entry appears only when the repo has local changes
-  and the rename entry only when `rename_prefix` is set; both run the same actions as the
-  `--commit-ask` submenu. A failed
+  (**Pull / Stash changes and pull / More actions... / Skip / Mute repo / Abort**) for each
+  one that is *behind* its upstream. The stash entry appears only when the repo has local
+  changes; *More actions...* opens a submenu (open in file explorer / rename repo / stash
+  changes) with the same actions as the `--commit-ask` submenu. A failed
   pull re-shows the menu for the same repo, so stashing is still one keystroke away. The menu
   comes up **during** the walk, the moment a repo is found behind, so an interrupted run
   still decided everything it asked about. Repos with no tracking branch are skipped

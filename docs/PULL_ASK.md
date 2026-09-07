@@ -55,16 +55,14 @@ D:\GIT\some\repo  -  4 commit(s) behind origin/main  -  3 uncommitted
 
  > Pull
    Stash changes and pull
-   Rename repo
+   More actions...
    Skip
    Mute repo
    Abort
 ```
 
 *Stash changes and pull* appears **only on a repo with local changes** — on a clean one
-there would be nothing to stash. *Rename repo* appears **only when `rename_prefix` is
-configured** — without one there is nothing to rename to. Either way the entry is left out
-rather than shown and failing.
+there would be nothing to stash. It is left out rather than shown and failing.
 
 Arrow keys to move, Enter to confirm, Ctrl-C to leave — nothing is typed. Same `pick`
 wrapper as every other menu in the tool ([COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) explains
@@ -74,10 +72,32 @@ why it runs on the blessed backend).
 |-------|--------|
 | Pull | Run `git pull --no-edit` in this repo, output streaming live, then wait for Enter and move to the next repo. A plain pull — no rebase, no autostash. `--no-edit` keeps a merge commit from dropping you into the git editor on top of the menu. If the pull fails, nothing is touched and the **menu is shown again for this repo** — the usual cause is local changes, and *Stash changes and pull* is right there. |
 | Stash changes and pull | Only shown when the repo has local changes. Runs `git stash push -u -m "<YYYY_MM_DD> GIT REPO STATUS TOOL"` — the same stash as the `--commit-ask` submenu, including untracked files — and then pulls. If the stash fails, the pull is **not** attempted (the dirty tree is exactly what would trip it up) and the menu is shown again — *Skip* to leave the repo alone. Recover your work with `git stash pop`. |
-| Rename repo | Only shown when `rename_prefix` is set. Renames the repo folder to `<rename_prefix><name>` (e.g. `_old_project`) — the same rename as the `--commit-ask` submenu — so a matching `ignore_prefixes` entry keeps it out of the next scan. Nothing is pulled: the repo is no longer at that path. A refused rename (no prefix, already prefixed, target exists) shows the menu again. |
+| More actions... | Open the **more** submenu (below). |
 | Skip | Skip this repo; move to the next. Also how you leave a repo whose pull just failed. |
 | Mute repo | Mute this repo, then pick a timeframe (1 day / 1 week / 1 month, or *Custom duration...* for typed input like `4h` / `3d` / `2w`). Muted repos are listed but not prompted for until the mute expires. |
 | Abort | Abort the loop. No further repos are touched. |
+
+## More submenu
+
+```
+D:\GIT\some\repo  -  more actions
+
+ > Open in file explorer
+   Rename repo
+   Stash changes
+   Back
+```
+
+The same three actions the `--commit-ask` submenu has, minus the ones that only make
+sense for a commit (file ages, file list) or already sit on the top menu here (pull, mute).
+Entries that print something wait for Enter before the next menu repaints the screen.
+
+| Entry | Action |
+|-------|--------|
+| Open in file explorer | Open this repo in the file manager configured as `file_explorer` — launched detached, so the submenu comes straight back. Without `file_explorer` set it just says so and changes nothing. |
+| Rename repo | Rename the repo folder to `<rename_prefix><name>` (e.g. `_old_project`) so a matching `ignore_prefixes` entry keeps it out of the next scan. Nothing is pulled: the repo is no longer at that path, so the loop moves to the next one. A refused rename (no `rename_prefix` configured, already prefixed, target exists) says so and stays in the submenu. |
+| Stash changes | The same `git stash push -u` as *Stash changes and pull*, **without** the pull. Puts the changes aside and returns to the top menu, where *Pull* is now a clean pull and the stash-and-pull entry is gone. A failed stash says so and stays in the submenu. Recover your work with `git stash pop`. |
+| Back | Return to the top menu. |
 
 ## Repos it does not re-check
 

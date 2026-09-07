@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from git_repo_status_check import puller
-from git_repo_status_check.constants import PULL_MENU
+from git_repo_status_check.constants import PULL_MENU, PULL_MORE_MENU
 from git_repo_status_check.mute_store import MuteStore
 
 from .helpers import _behind, _run_pull
@@ -24,14 +24,34 @@ def test_stash_entry_is_hidden_on_a_clean_repo() -> None:
 
 def test_stash_entry_follows_pull_on_a_dirty_repo() -> None:
     labels = [label for label, _ in puller.pull_menu(3)]
-    assert labels == ["Pull", "Stash changes and pull", "Skip", "Mute repo", "Abort"]
+    assert labels == [
+        "Pull",
+        "Stash changes and pull",
+        "More actions...",
+        "Skip",
+        "Mute repo",
+        "Abort",
+    ]
 
 
-def test_rename_entry_only_with_a_configured_prefix() -> None:
-    """No prefix to rename to means no entry — it could only fail."""
-    labels = [label for label, _ in puller.pull_menu(0, "_old_")]
-    assert labels == ["Pull", "Rename repo", "Skip", "Mute repo", "Abort"]
-    assert puller.pull_menu(0) == PULL_MENU
+def test_more_submenu_offers_explorer_rename_stash_and_back() -> None:
+    labels = [label for label, _ in PULL_MORE_MENU]
+    assert labels == ["Open in file explorer", "Rename repo", "Stash changes", "Back"]
+
+
+def test_explorer_choice_opens_the_repo_and_stays_in_the_submenu(
+    monkeypatch: pytest.MonkeyPatch, pull_store: MuteStore
+) -> None:
+    opened: list[tuple[Path, str | None]] = []
+
+    def _explorer(path: Path, command: str | None) -> None:
+        opened.append((path, command))
+
+    monkeypatch.setattr(puller, "run_explorer", _explorer)
+    # more -> explorer -> back -> skip
+    pulled = _run_pull(monkeypatch, pull_store, [_behind("repo0")], "more", "e", "b", "s")
+    assert opened == [(Path("repo0"), None)]
+    assert pulled == []
 
 
 def test_rename_choice_renames_and_moves_on(
@@ -45,14 +65,15 @@ def test_rename_choice_renames_and_moves_on(
         return True
 
     monkeypatch.setattr(puller, "run_rename", _rename)
-    pulled = _run_pull(monkeypatch, pull_store, [_behind("repo0"), _behind("repo1")], "r", "s")
+    repos = [_behind("repo0"), _behind("repo1")]
+    pulled = _run_pull(monkeypatch, pull_store, repos, "more", "r", "s")
     assert renamed == [(Path("repo0"), None)]
     assert pulled == []
 
 
 def test_a_failed_rename_re_asks(monkeypatch: pytest.MonkeyPatch, pull_store: MuteStore) -> None:
     monkeypatch.setattr(puller, "run_rename", lambda _path, _prefix: False)
-    pulled = _run_pull(monkeypatch, pull_store, [_behind("repo0")], "r", "p")
+    pulled = _run_pull(monkeypatch, pull_store, [_behind("repo0")], "more", "r", "b", "p")
     assert pulled == [Path("repo0")]
 
 
@@ -90,6 +111,23 @@ def test_a_failed_stash_does_not_pull(
     The menu comes back after the failed stash; Skip is what leaves the repo alone.
     """
     stashed, pulled = _run_stashing(monkeypatch, pull_store, "t", "s", stash_ok=False)
+    assert stashed == [Path("repo0")]
+    assert pulled == []
+
+
+def test_submenu_stash_returns_to_the_menu_without_pulling(
+    monkeypatch: pytest.MonkeyPatch, pull_store: MuteStore
+) -> None:
+    """A plain stash puts the changes aside; pulling stays a separate decision."""
+    stashed, pulled = _run_stashing(monkeypatch, pull_store, "more", "s", "p")
+    assert stashed == [Path("repo0")]
+    assert pulled == [Path("repo0")]
+
+
+def test_a_failed_submenu_stash_stays_in_the_submenu(
+    monkeypatch: pytest.MonkeyPatch, pull_store: MuteStore
+) -> None:
+    stashed, pulled = _run_stashing(monkeypatch, pull_store, "more", "s", "b", "s", stash_ok=False)
     assert stashed == [Path("repo0")]
     assert pulled == []
 

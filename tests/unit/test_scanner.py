@@ -202,7 +202,9 @@ def test_line_ending_noise_dropped_but_real_changes_kept(
     files = scanner.changed_file_ages(tmp_path)
     assert [f.path for f in files] == ["real.py"]
     # The dropped file was the newest one -- its mtime must not leak into the repo's age.
-    assert scanner.dirty_info(tmp_path) == (1, pytest.approx(1000.0))
+    count, latest = scanner.dirty_info(tmp_path)
+    assert count == 1
+    assert latest == pytest.approx(1000.0)
 
 
 @pytest.mark.parametrize("porcelain", ["?? new.py\n", " D gone.py\n", "R  old.py -> new.py\n"])

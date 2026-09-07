@@ -14,6 +14,8 @@ or directly:
 uv run python main.py --pull-ask [--all] [--settings PATH] [--debug]
 ```
 
+The desktop window ([GUI.md](GUI.md)) shows this menu as buttons under its log.
+
 ## What it does
 
 It walks the same configured `folders` as every other mode (same `ignore_prefixes`, same
@@ -48,6 +50,12 @@ prompted for. A plain `git pull` usually succeeds anyway and fails loudly when i
 when it cannot, the **menu comes back for the same repo** so *Stash changes and pull* is
 still one keystroke away.
 
+Line-ending noise is not counted as local changes (see [SCANNING.md](SCANNING.md)), yet git
+itself would still refuse to merge over such a file. So the pull first restores every
+line-ending-only file from `HEAD` and says so (`Reset N line-ending-only file(s) so the pull
+can proceed.`); only their line endings change, to what this repo's config writes on checkout
+anyway. Without that, a repo the tool just called clean would fail to pull and offer no stash.
+
 ## The menu
 
 ```
@@ -70,7 +78,7 @@ why it runs on the blessed backend).
 
 | Entry | Action |
 |-------|--------|
-| Pull | Run `git pull --no-edit` in this repo, output streaming live, then wait for Enter and move to the next repo. A plain pull — no rebase, no autostash. `--no-edit` keeps a merge commit from dropping you into the git editor on top of the menu. If the pull fails, nothing is touched and the **menu is shown again for this repo** — the usual cause is local changes, and *Stash changes and pull* is right there. |
+| Pull | Restore line-ending-only files from `HEAD` (see above), then run `git pull --no-edit` in this repo, output streaming live, then wait for Enter and move to the next repo. A plain pull — no rebase, no autostash. `--no-edit` keeps a merge commit from dropping you into the git editor on top of the menu. If the pull fails, nothing else is touched and the **menu is shown again for this repo** — the usual cause is local changes, and *Stash changes and pull* is right there. |
 | Stash changes and pull | Only shown when the repo has local changes. Runs `git stash push -u -m "<YYYY_MM_DD> GIT REPO STATUS TOOL"` — the same stash as the `--commit-ask` submenu, including untracked files — and then pulls. If the stash fails, the pull is **not** attempted (the dirty tree is exactly what would trip it up) and the menu is shown again — *Skip* to leave the repo alone. Recover your work with `git stash pop`. |
 | More actions... | Open the **more** submenu (below). |
 | Skip | Skip this repo; move to the next. Also how you leave a repo whose pull just failed. |

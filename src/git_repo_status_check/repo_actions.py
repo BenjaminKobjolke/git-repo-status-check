@@ -14,26 +14,32 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
+from . import frontend
 from .constants import (
     EXPLORER_NOT_CONFIGURED,
+    GIT_CHECKOUT_HEAD_STDIN_PATHS,
     GIT_PULL,
+    NUL,
+    PULL_LINE_ENDINGS_RESET,
     RENAME_PREFIX_NOT_CONFIGURED,
     REPO_PATH_TOKEN,
     STASH_MESSAGE_FORMAT,
 )
+from .scanner import line_ending_only_paths, run_git
 
 
 def _run_streaming(path: Path, args: tuple[str, ...], label: str) -> bool:
     """Run ``git <args>`` in the repo dir with live output; report under ``label``.
 
-    Streams (not captured like ``scanner.run_git``) so the user sees progress and any
-    credential prompt. Failures surface as-is; the caller decides what to offer next.
+    Shown live through the frontend (not captured like ``scanner.run_git``) so the user sees
+    progress and any credential prompt. Failures surface as-is; the caller decides what to
+    offer next.
     """
-    result = subprocess.run(("git", "-C", str(path), *args), check=False)
-    if result.returncode == 0:
+    code = frontend.get().run_live(("git", "-C", str(path), *args), path)
+    if code == 0:
         print(f"  OK ({label}): {path}")
         return True
-    print(f"  FAILED ({label}, exit {result.returncode}): {path}")
+    print(f"  FAILED ({label}, exit {code}): {path}")
     return False
 
 
@@ -44,7 +50,25 @@ def run_pull(path: Path) -> bool:
     merge commit otherwise opens the git editor over the menu, and the default merge message
     is what would be typed anyway.
     """
+    _reset_line_ending_noise(path)
     return _run_streaming(path, GIT_PULL, "pull")
+
+
+def _reset_line_ending_noise(path: Path) -> None:
+    """Restore from HEAD the files whose only change is a CR at end of line.
+
+    The scanner already hides them, so the repo was shown as clean -- but git itself still
+    refuses to merge over a file it counts as modified, and on such a repo the menu offers
+    no stash either (nothing to stash). Restoring costs nothing: the diff ignoring CR is
+    empty for exactly these paths, so only their line endings change, to what a fresh
+    checkout under this repo's config would have written anyway. A failed checkout is
+    logged by ``run_git``; the pull that follows then fails with git's own message.
+    """
+    noisy = line_ending_only_paths(path)
+    if not noisy:
+        return
+    run_git(path, GIT_CHECKOUT_HEAD_STDIN_PATHS, input=NUL.join(sorted(noisy)))
+    print(PULL_LINE_ENDINGS_RESET.format(count=len(noisy)))
 
 
 def run_push(path: Path, push_args: tuple[str, ...]) -> bool:
@@ -66,11 +90,11 @@ def run_stash(path: Path) -> bool:
     submenu to put a repo aside.
     """
     message = datetime.now(tz=UTC).astimezone().strftime(STASH_MESSAGE_FORMAT)
-    result = subprocess.run(
-        ("git", "-C", str(path), "stash", "push", "-u", "-m", message), check=False
+    code = frontend.get().run_live(
+        ("git", "-C", str(path), "stash", "push", "-u", "-m", message), path
     )
-    if result.returncode != 0:
-        print(f"  FAILED (stash, exit {result.returncode}): {path}")
+    if code != 0:
+        print(f"  FAILED (stash, exit {code}): {path}")
         return False
     print(f"  Stashed: {message}")
     return True

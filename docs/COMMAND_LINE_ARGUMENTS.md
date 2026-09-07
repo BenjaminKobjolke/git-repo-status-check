@@ -72,8 +72,9 @@ with the arrow keys, confirm with Enter, leave with Ctrl-C — nothing is typed.
     line-ending-only changes are absent — then show the submenu again.
   - *Pull* — run `git pull --no-edit` in this repo (live output), then show the submenu again.
     Use it to fast-forward before committing. A plain pull — if it can't proceed (e.g. local
-    changes conflict) it fails loudly and nothing else is touched. `--no-edit` keeps a merge
-    commit from opening the git editor over the menu.
+    changes conflict) it fails loudly and nothing else is touched; line-ending-only files are
+    restored from `HEAD` first so they never block it. `--no-edit` keeps a merge commit from
+    opening the git editor over the menu.
   - *Open in file explorer* — open this repo in the file manager configured as `file_explorer`, launched
     detached so the prompt returns right away, then show the submenu again.
   - *Rename repo* — rename this repo's folder to `<rename_prefix><name>` (e.g. `_old_project`), so
@@ -296,6 +297,16 @@ This is also how you see which entries were dropped as line-ending noise
 
 ```
 DEBUG git_repo_status_check: D:\GIT\some\repo: ignored 48 line-ending-only change(s)
+```
+
+## `gui.py`
+
+The desktop window (`start_gui.bat`) takes only `--settings PATH` and `--debug`, with the
+same meaning as above; every other switch is a button or checkbox in its Run tab. See
+[GUI.md](GUI.md).
+
+```bat
+uv run pythonw gui.py [--settings PATH] [--debug]
 ```
 
 ## `--help`

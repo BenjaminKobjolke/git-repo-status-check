@@ -1,4 +1,4 @@
-"""Unit tests for the --commit-ask skip-reason callback built in main."""
+"""Unit tests for the mode orchestration in runner, driven through main's argument parsing."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import main
+from git_repo_status_check import runner
 from git_repo_status_check.models import RepoStatus
 from git_repo_status_check.mute_store import MuteStore, PushMute, PushVisit
 from git_repo_status_check.settings import Settings
@@ -34,23 +35,23 @@ def _settings(min_modified_age: float | None = None) -> Settings:
 
 
 def test_recently_changed_repo_reports_its_age() -> None:
-    reason = main.build_skip_reason(_settings(min_modified_age=3600.0))(_status(_NOW - 300.0))
+    reason = runner.build_skip_reason(_settings(min_modified_age=3600.0))(_status(_NOW - 300.0))
     assert reason == "changed 5 minutes ago"
 
 
 def test_old_enough_repo_has_no_skip_reason() -> None:
     assert (
-        main.build_skip_reason(_settings(min_modified_age=3600.0))(_status(_NOW - 7200.0)) is None
+        runner.build_skip_reason(_settings(min_modified_age=3600.0))(_status(_NOW - 7200.0)) is None
     )
 
 
 def test_undated_repo_has_no_skip_reason() -> None:
     # latest_change stays 0.0 when no changed file had a readable mtime -- not "1970".
-    assert main.build_skip_reason(_settings(min_modified_age=3600.0))(_status(0.0)) is None
+    assert runner.build_skip_reason(_settings(min_modified_age=3600.0))(_status(0.0)) is None
 
 
 def test_no_threshold_means_actionable() -> None:
-    assert main.build_skip_reason(_settings())(_status(_NOW)) is None
+    assert runner.build_skip_reason(_settings())(_status(_NOW)) is None
 
 
 def _run_commit_ask(
@@ -71,9 +72,9 @@ def _run_commit_ask(
         seen.update(kwargs)
         return []
 
-    monkeypatch.setattr(main, "scan_all", fake_scan_all)
-    monkeypatch.setattr(main, "report", fake_report)
-    monkeypatch.setattr(main, "commit_interactive", lambda *args, **kwargs: None)
+    monkeypatch.setattr(runner, "scan_all", fake_scan_all)
+    monkeypatch.setattr(runner, "report", fake_report)
+    monkeypatch.setattr(runner, "commit_interactive", lambda *args, **kwargs: None)
     assert main.main(["--settings", str(settings_file), "--commit-ask", *extra]) == 0
     return seen
 
@@ -100,7 +101,7 @@ def test_all_flag_drops_the_walk_filter(monkeypatch: pytest.MonkeyPatch, tmp_pat
 def test_checked_repo_is_recorded_by_the_walk(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, store: MuteStore
 ) -> None:
-    monkeypatch.setattr(main, "MuteStore", lambda *_a, **_k: store)
+    monkeypatch.setattr(runner, "MuteStore", lambda *_a, **_k: store)
     on_clean = _run_commit_ask(monkeypatch, tmp_path)["on_clean"]
     assert callable(on_clean)
     on_clean(Path("repo0"))
@@ -118,8 +119,8 @@ def test_push_ask_runs_the_push_mode(
     def fake_push(settings: object, store: object, prompt_all: bool = False) -> None:
         seen["prompt_all"] = prompt_all
 
-    monkeypatch.setattr(main, "push_interactive", fake_push)
-    monkeypatch.setattr(main, "scan_all", lambda *_a, **_k: pytest.fail("must not scan"))
+    monkeypatch.setattr(runner, "push_interactive", fake_push)
+    monkeypatch.setattr(runner, "scan_all", lambda *_a, **_k: pytest.fail("must not scan"))
     assert main.main(["--settings", str(settings_file), "--push-ask", *extra]) == 0
     assert seen["prompt_all"] is expected_all
 
@@ -164,11 +165,11 @@ def _run_sync_ask(
         order.append("commit")
         return commit_result
 
-    monkeypatch.setattr(main, "pull_interactive", fake_pull)
-    monkeypatch.setattr(main, "push_interactive", fake_push)
-    monkeypatch.setattr(main, "scan_all", lambda *_a, **_k: [])
-    monkeypatch.setattr(main, "report", lambda *_a, **_k: [])
-    monkeypatch.setattr(main, "commit_interactive", fake_commit)
+    monkeypatch.setattr(runner, "pull_interactive", fake_pull)
+    monkeypatch.setattr(runner, "push_interactive", fake_push)
+    monkeypatch.setattr(runner, "scan_all", lambda *_a, **_k: [])
+    monkeypatch.setattr(runner, "report", lambda *_a, **_k: [])
+    monkeypatch.setattr(runner, "commit_interactive", fake_commit)
     code = main.main(["--settings", str(settings_file), "--sync-ask", *extra])
     return code, order, seen
 

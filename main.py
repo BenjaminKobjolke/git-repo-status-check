@@ -4,51 +4,53 @@ from __future__ import annotations
 
 import argparse
 import sys
-import time
-from collections.abc import Callable
-from datetime import UTC, datetime
 from pathlib import Path
 
 from git_repo_status_check.app_logger import AppLogger
-from git_repo_status_check.committer import commit_interactive
-from git_repo_status_check.constants import (
-    ASK_REQUIRES_COMMIT_COMMAND,
-    FLAG_COMMIT_ASK,
-    FLAG_SYNC_ASK,
-    MUTE_DB_FILE,
-    MUTED_LINE,
-    MUTED_NONE,
-    MUTED_SECTION_COMMIT,
-    MUTED_SECTION_PULL,
-    MUTED_SECTION_PUSH,
-    SKIP_LABEL_RECENT,
-    SKIPPED_WORK_SCANNING,
-    SYNC_STAGE_COMMIT,
-    SYNC_STAGE_HEADER,
-    SYNC_STAGE_PULL,
-    SYNC_STAGE_PUSH,
-)
-from git_repo_status_check.duration import format_duration
-from git_repo_status_check.line_endings import fix_interactive
-from git_repo_status_check.models import RepoStatus
-from git_repo_status_check.mute_store import (
-    MuteStore,
-    PullMute,
-    PullVisit,
-    PushMute,
-    PushVisit,
-    ScanSkip,
-)
-from git_repo_status_check.puller import pull_interactive
-from git_repo_status_check.pusher import push_interactive
-from git_repo_status_check.reporter import clear_progress, progress, report, report_skipped
-from git_repo_status_check.scanner import scan_all
+from git_repo_status_check.constants import MUTE_DB_FILE
+from git_repo_status_check.runner import Mode, RunRequest, Stores, run
 from git_repo_status_check.settings import Settings, SettingsError, resolve_settings_path
 
 _PROJECT_ROOT = Path(__file__).resolve().parent
 
+# Each mode flag, in the precedence the old branch ladder had: the first one set wins.
+_MODE_FLAGS: tuple[tuple[str, Mode], ...] = (
+    ("list_muted", Mode.LIST_MUTED),
+    ("fix_line_endings", Mode.FIX_LINE_ENDINGS),
+    ("sync_ask", Mode.SYNC_ASK),
+    ("pull_ask", Mode.PULL_ASK),
+    ("push_ask", Mode.PUSH_ASK),
+    ("commit_ask", Mode.COMMIT_ASK),
+)
+
 
 def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    AppLogger.configure(debug=args.debug)
+
+    request = RunRequest(mode=_mode_from(args), prompt_all=args.all, limit=args.limit)
+    # All stores are built here, not per branch: --list-muted returns before settings are
+    # loaded, so every mode's store has to exist by then to be listed.
+    stores = Stores.open(_PROJECT_ROOT / MUTE_DB_FILE)
+
+    settings: Settings | None = None
+    if request.needs_settings():
+        try:
+            settings = Settings.load(resolve_settings_path(args.settings, _PROJECT_ROOT))
+        except SettingsError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+    return run(settings, stores, request)
+
+
+def _mode_from(args: argparse.Namespace) -> Mode:
+    for attribute, mode in _MODE_FLAGS:
+        if getattr(args, attribute):
+            return mode
+    return Mode.SCAN
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--settings", help="Path to settings.json (default: project root).")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging.")
@@ -88,170 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="List repos muted via any ask-mode (and until when), then exit.",
     )
-    args = parser.parse_args(argv)
-
-    AppLogger.configure(debug=args.debug)
-
-    # All stores are built here, not per branch: --list-muted returns before settings are
-    # loaded, so every mode's store has to exist by then to be listed.
-    store = MuteStore(_PROJECT_ROOT / MUTE_DB_FILE)
-    pull_store = MuteStore(_PROJECT_ROOT / MUTE_DB_FILE, PullMute, PullVisit)
-    push_store = MuteStore(_PROJECT_ROOT / MUTE_DB_FILE, PushMute, PushVisit)
-    if args.list_muted:
-        _list_muted(
-            (
-                (MUTED_SECTION_COMMIT, store),
-                (MUTED_SECTION_PULL, pull_store),
-                (MUTED_SECTION_PUSH, push_store),
-            )
-        )
-        return 0
-
-    settings_path = resolve_settings_path(args.settings, _PROJECT_ROOT)
-    try:
-        settings = Settings.load(settings_path)
-    except SettingsError as exc:
-        print(exc, file=sys.stderr)
-        return 1
-
-    # Repos with nothing but line-ending noise are filtered out of the report entirely,
-    # so the repair mode does its own walk instead of running the normal scan first.
-    if args.fix_line_endings:
-        fix_interactive(settings)
-        return 0
-
-    # Fail before any walk (a pull walk is minutes) if the commit stage can't be honored.
-    if (args.commit_ask or args.sync_ask) and not settings.commit_command:
-        flag = FLAG_SYNC_ASK if args.sync_ask else FLAG_COMMIT_ASK
-        print(ASK_REQUIRES_COMMIT_COMMAND.format(flag=flag), file=sys.stderr)
-        return 1
-
-    if args.sync_ask:
-        _sync_stages(settings, store, pull_store, push_store, args.all, args.limit)
-        return 0
-
-    # Being behind a remote is a different question from having uncommitted changes, so this
-    # mode does its own walk (it has to fetch) rather than consuming the normal scan.
-    if args.pull_ask:
-        pull_interactive(settings, pull_store, prompt_all=args.all)
-        return 0
-
-    # Same shape as --pull-ask, the other way round: commits the upstream lacks.
-    if args.push_ask:
-        push_interactive(settings, push_store, prompt_all=args.all)
-        return 0
-
-    _commit_stage(settings, store, args.commit_ask, args.all, args.limit)
-    return 0
-
-
-def _sync_stages(
-    settings: Settings,
-    store: MuteStore,
-    pull_store: MuteStore,
-    push_store: MuteStore,
-    prompt_all: bool,
-    limit: int | None,
-) -> None:
-    """``--sync-ask``: pull, then commit, then push -- each the existing mode, in order.
-
-    The first stage the user aborts ends the run; that stage already printed ``Aborted.``
-    so nothing more is said here. Each stage keeps its own store, mutes and visits.
-    """
-    print(SYNC_STAGE_HEADER.format(stage=SYNC_STAGE_PULL))
-    if not pull_interactive(settings, pull_store, prompt_all=prompt_all):
-        return
-    print(SYNC_STAGE_HEADER.format(stage=SYNC_STAGE_COMMIT))
-    if not _commit_stage(settings, store, True, prompt_all, limit):
-        return
-    print(SYNC_STAGE_HEADER.format(stage=SYNC_STAGE_PUSH))
-    push_interactive(settings, push_store, prompt_all=prompt_all)
-
-
-def _commit_stage(
-    settings: Settings, store: MuteStore, ask: bool, prompt_all: bool, limit: int | None
-) -> bool:
-    """The scan-and-report, plus the ``--commit-ask`` menus when ``ask``.
-
-    False when the user aborted the menus; True otherwise (plain report mode included).
-    """
-    # Mutes and visits filter the walk itself, so a held-back repo costs no git call --
-    # only --commit-ask acts per repo, so only it filters. --all drops both predicates,
-    # which is what makes every repo actionable again.
-    now = time.time()
-    skip = (
-        ScanSkip(store, settings.min_visit_age, now, SKIPPED_WORK_SCANNING)
-        if ask and not prompt_all
-        else None
-    )
-
-    def record_checked(repo: Path) -> None:
-        """Nothing to commit here, so the walk itself settled the repo (see scan_all)."""
-        store.record_visit(str(repo), now)
-
-    statuses = scan_all(
-        settings,
-        on_repo=progress,
-        skip=skip,
-        # Recorded even under --all: the repo was checked all the same. Plain report mode
-        # records nothing -- it is a passive listing, not a decision about any repo.
-        on_clean=record_checked if ask else None,
-    )
-    clear_progress()
-    skip_reason = build_skip_reason(settings) if ask and not prompt_all else None
-    shown = report(statuses, limit=limit, skip_reason=skip_reason)
-    report_skipped(skip)
-
-    if not (ask and settings.commit_command):
-        return True
-    return commit_interactive(
-        shown,
-        settings.commit_command,
-        store,
-        settings.file_explorer,
-        settings.rename_prefix,
-    )
-
-
-def build_skip_reason(settings: Settings) -> Callable[[RepoStatus], str | None]:
-    """Return a predicate labelling repos --commit-ask will not prompt for (None = actionable).
-
-    Only the file-someone-may-still-be-editing test lives here -- the one reason that needs
-    the scan's own result. Mutes and menus you already saw are applied a level earlier, at
-    the walk (``mute_store.ScanSkip``), so a repo held back for either never reaches this.
-    """
-
-    def build(status: RepoStatus) -> str | None:
-        # latest_change is 0.0 when no changed file had a readable mtime -- not "1970".
-        age = time.time() - status.latest_change
-        min_modified_age = settings.min_modified_age
-        if min_modified_age is not None and status.latest_change > 0 and age < min_modified_age:
-            return SKIP_LABEL_RECENT.format(duration=format_duration(age))
-        return None
-
-    return build
-
-
-def _list_muted(sections: tuple[tuple[str, MuteStore], ...]) -> None:
-    """Print every ask-mode's active mutes (soonest expiry first), section by section.
-
-    The modes keep separate mute tables, so listing only one would quietly hide the others.
-    """
-    now = time.time()
-    if not any(source.list_active(now) for _, source in sections):
-        print(MUTED_NONE)
-        return
-    for heading, source in sections:
-        print(heading)
-        active = source.list_active(now)
-        if not active:
-            print(f"  {MUTED_NONE}")
-            continue
-        for record in active:
-            local = datetime.fromtimestamp(record.muted_until, tz=UTC).astimezone()
-            print(
-                "  " + MUTED_LINE.format(path=record.path, until=local.strftime("%Y-%m-%d %H:%M"))
-            )
+    return parser.parse_args(argv)
 
 
 if __name__ == "__main__":

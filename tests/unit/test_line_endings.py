@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 from git_repo_status_check import line_endings, menu
+from git_repo_status_check.constants import NUL
+from git_repo_status_check.repair_constants import GIT_ADD_STDIN_PATHS
 from git_repo_status_check.settings import Settings
 
 
@@ -21,15 +23,16 @@ def _stub_git(
 
     ``clean_at`` of None means no value ever helps (a .gitattributes rule wins). ``original``
     is what ``config --get`` answers before anything is written. ``git add`` is modelled as
-    the stat refresh it is: the file drops out of the status listing once it is run.
+    the stat refresh it is: the file drops out of the status listing once it is run. A call
+    that hands git paths on stdin is recorded with that input appended as its last field.
     """
     calls: list[tuple[str, ...]] = []
     current = original
     refreshed = False
 
-    def run_git(_repo: Path, args: tuple[str, ...]) -> str | None:
+    def run_git(_repo: Path, args: tuple[str, ...], input: str | None = None) -> str | None:
         nonlocal current, refreshed
-        calls.append(args)
+        calls.append(args if input is None else (*args, input))
         if args[:2] == ("config", "--local"):
             return f"{current}\n"
         if args[0] == "config":
@@ -53,10 +56,13 @@ def test_repair_settles_on_the_value_that_makes_the_repo_clean(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # LF blobs with a CRLF worktree: turning the conversion on normalizes them back.
-    _stub_git(monkeypatch, clean_at="true", original="false")
-    result = line_endings.repair(Path("repo"), {"noise.txt"})
+    calls = _stub_git(monkeypatch, clean_at="true", original="false")
+    result = line_endings.repair(Path("repo"), {"b.txt", "a.txt"})
     assert result.autocrlf == "true"
-    assert result.fixed == 1
+    assert result.fixed == 2
+    # The paths reach `git add` on stdin, NUL-separated: a repo with hundreds of them would
+    # otherwise overflow the Windows command line.
+    assert (*GIT_ADD_STDIN_PATHS, f"a.txt{NUL}b.txt") in calls
 
 
 def test_repair_falls_through_to_the_second_candidate(monkeypatch: pytest.MonkeyPatch) -> None:

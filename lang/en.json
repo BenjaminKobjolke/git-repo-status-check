@@ -1,0 +1,73 @@
+{
+  "window": {
+    "title": "Git Repo Status Check"
+  },
+  "tab": {
+    "run": "Run",
+    "settings": "Settings"
+  },
+  "run": {
+    "heading": "Run",
+    "subheading": "Pick a mode. Git output streams into the log; a repo's menu appears below it.",
+    "empty": "Nothing has run yet. Pick a mode above.",
+    "started": "=== {mode} ===",
+    "finished": "Finished (exit {code}).",
+    "action": {
+      "scan": "Scan",
+      "commit_ask": "Commit ask",
+      "pull_ask": "Pull ask",
+      "push_ask": "Push ask",
+      "sync_ask": "Sync ask",
+      "fix_line_endings": "Fix line endings",
+      "list_muted": "List muted",
+      "stop": "Stop"
+    },
+    "option": {
+      "all": "Ask for every repo (ignore mutes and visits)",
+      "limit": "Limit",
+      "limit_none": "no limit"
+    }
+  },
+  "prompt": {
+    "ok": "OK"
+  },
+  "status": {
+    "idle": "Idle",
+    "running": "Running {mode}…",
+    "scanning": "Scanning: {path}",
+    "stopping": "Stopping after the current step…"
+  },
+  "settings": {
+    "heading": "Settings",
+    "subheading": "Saved to {path}. Only the folders are required.",
+    "saved": "Saved.",
+    "invalid": "! {error}",
+    "pick_folder": "Pick a root folder to scan",
+    "label": {
+      "folders": "Folders to scan",
+      "commit_command": "Commit command",
+      "file_explorer": "File explorer command",
+      "rename_prefix": "Rename prefix",
+      "ignore_prefixes": "Ignore prefixes",
+      "min_modified_age": "Minimum modified age",
+      "min_visit_age": "Minimum visit age"
+    },
+    "hint": {
+      "folders": "Each root is walked recursively; the walk stops at the first .git it finds.",
+      "commit_command": "Run in the repo's own directory when you choose Commit.",
+      "file_explorer": "[[REPO_PATH]] is replaced with the repo path — quote it yourself.",
+      "rename_prefix": "Prepended to the folder name by Rename repo; list it under the ignore prefixes too.",
+      "ignore_prefixes": "Comma-separated. Folders whose name starts with any of these are skipped.",
+      "min_modified_age": "Commit ask leaves repos touched more recently alone, e.g. 1h, 3d, 2w. Empty: off.",
+      "min_visit_age": "A settled repo is left alone for this long, e.g. 1h. Empty: the default of 1h."
+    },
+    "option": {
+      "visit_age_off": "Off (null)"
+    },
+    "action": {
+      "add_folder": "Add folder…",
+      "remove_folder": "Remove selected",
+      "save": "Save"
+    }
+  }
+}

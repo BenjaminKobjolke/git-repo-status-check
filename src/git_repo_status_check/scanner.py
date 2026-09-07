@@ -43,7 +43,9 @@ def find_repos(root: Path, ignore_prefixes: tuple[str, ...] = ()) -> Iterator[Pa
         ]
 
 
-def run_git(repo: Path, args: tuple[str, ...], quiet: bool = False) -> str | None:
+def run_git(
+    repo: Path, args: tuple[str, ...], quiet: bool = False, input: str | None = None
+) -> str | None:
     """Run ``git -C <repo> <args>``; return stdout, or None if git failed.
 
     Output is decoded as UTF-8 (git's own path encoding) rather than by the process
@@ -52,6 +54,9 @@ def run_git(repo: Path, args: tuple[str, ...], quiet: bool = False) -> str | Non
     ``quiet`` logs a failure at debug level instead of warning. Some callers ask questions
     a repo is allowed to have no answer to -- ``--pull-ask`` queries the upstream of every
     repo it walks, and the ones without a tracking branch are normal, not warnings.
+
+    ``input`` is handed to git on stdin, for the ``--pathspec-from-file=-`` commands: a
+    path list on the command line has a length cap on Windows, stdin has none.
     """
     try:
         result = subprocess.run(
@@ -61,6 +66,7 @@ def run_git(repo: Path, args: tuple[str, ...], quiet: bool = False) -> str | Non
             encoding=GIT_OUTPUT_ENCODING,
             errors=GIT_OUTPUT_ERRORS,
             check=False,
+            input=input,
         )
     except FileNotFoundError:
         AppLogger.error("git executable not found on PATH.")

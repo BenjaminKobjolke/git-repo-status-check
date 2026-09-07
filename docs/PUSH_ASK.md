@@ -13,6 +13,8 @@ or directly:
 uv run python main.py --push-ask [--all] [--settings PATH] [--debug]
 ```
 
+The desktop window ([GUI.md](GUI.md)) shows this menu as buttons under its log.
+
 ## What it does
 
 It walks the same configured `folders` as every other mode (same `ignore_prefixes`, same

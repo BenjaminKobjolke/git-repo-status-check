@@ -32,6 +32,10 @@ blessed decodes those sequences itself, so the subprocesses keep the console and
 live output. The unit tests replace the menu helper, so a real menu is only exercised by
 `tools\menu_smoke.bat` — run it by hand after touching `menu.py`.
 
+In the desktop window ([GUI.md](GUI.md)) the same menus appear as a row of buttons under
+the log, with the same labels and the same effects; typed input (a custom mute duration)
+becomes a text field.
+
 ## Top menu
 
 ```
@@ -84,7 +88,7 @@ Entries that print something wait for Enter before the next menu repaints the sc
 | Age of changed files | Show the modification date of each changed file. When every changed file shares the same date, it collapses to one line (e.g. `All 5 files: 22.08.2026`); otherwise each file is listed with its date. Returns to the submenu. |
 | List changed files | List the changed files in this repo — the same set that was counted (see [SCANNING.md](SCANNING.md)). Returns to the submenu. |
 | Remote url | Show this repo's remotes — name and fetch URL, one line each (`git remote -v`, push duplicates dropped). Prints `(no remote)` when the repo has none. Returns to the submenu. |
-| Pull | Run `git pull --no-edit` in this repo (live output; `--no-edit` keeps a merge commit out of the git editor). Use it to fast-forward before committing. A plain pull — if it can't proceed (e.g. local changes conflict) it fails loudly and nothing else is touched. Returns to the submenu. The same `repo_actions.run_pull` [`--pull-ask`](PULL_ASK.md) uses, so both behave identically. |
+| Pull | Run `git pull --no-edit` in this repo (live output; `--no-edit` keeps a merge commit out of the git editor). Use it to fast-forward before committing. A plain pull — if it can't proceed (e.g. local changes conflict) it fails loudly and nothing else is touched. Line-ending-only files are restored from `HEAD` first so they cannot be what blocks it (see [PULL_ASK.md](PULL_ASK.md)). Returns to the submenu. The same `repo_actions.run_pull` [`--pull-ask`](PULL_ASK.md) uses, so both behave identically. |
 | Open in file explorer | Open this repo in the configured file manager (`file_explorer` in settings). Launched detached, so the prompt comes straight back — the file manager stays open as long as you want it. Without `file_explorer` set it just says so and changes nothing. Returns to the submenu. |
 | Rename repo | Rename this repo's folder to `<rename_prefix><name>` (e.g. `project` -> `_old_project`). Point `rename_prefix` at one of your `ignore_prefixes` and the folder drops out of the next scan. Refuses (and returns to the submenu) when `rename_prefix` is unset, the name already starts with it, the target exists, or the rename fails. On success the repo is consumed — the loop moves to the next one. |
 | Stash changes | Stash this repo's changes: `git stash push -u -m "<YYYY_MM_DD> GIT REPO STATUS TOOL"`. `-u` includes untracked files, so the repo is fully clean afterwards and does not come back dirty in the next scan. The message is fixed (today's date + the tool marker) — not configurable. On success the repo is consumed — nothing is left to commit, so the loop moves to the next one. A failed stash returns to the submenu. Restore with `git stash pop` in that repo. |

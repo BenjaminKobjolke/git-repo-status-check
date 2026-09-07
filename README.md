@@ -1,6 +1,6 @@
 # git-repo-status-check
 
-CLI that scans configured root folders (e.g. `D:\GIT`) for git repositories with
+CLI (and desktop GUI) that scans configured root folders (e.g. `D:\GIT`) for git repositories with
 uncommitted changes and reports which repos are dirty and how many files are uncommitted
 in each. Submodules are checked individually.
 
@@ -16,7 +16,8 @@ in each. Submodules are checked individually.
 install.bat
 ```
 
-Copy `settings.example.json` to `settings.json` and set your folders:
+Copy `settings.example.json` to `settings.json` and set your folders — or open the GUI
+(`start_gui.bat`), whose Settings tab edits every key with a folder browser:
 
 ```json
 {
@@ -58,6 +59,13 @@ start_commit-ask_all.bat
 start_pull-ask.bat
 start_push-ask.bat
 start_sync-ask.bat
+```
+
+or the desktop window, which runs every mode with the menus as buttons and edits the
+settings (see [docs/GUI.md](docs/GUI.md)):
+
+```bat
+start_gui.bat
 ```
 
 or directly:
@@ -156,6 +164,11 @@ To stop git itself from reporting them, run `--fix-line-endings`: it offers to s
 repo's local `core.autocrlf` to a value that makes git agree with the index again, without
 committing or rewriting anything.
 
+A *Pull* from any menu does not trip over them either: git would refuse to merge over a
+file it counts as modified, so the pull first restores those files from `HEAD` (`Reset N
+line-ending-only file(s) so the pull can proceed.`) — only their line endings change, to what
+this repo's config writes on checkout anyway.
+
 If a repo still looks wrong, check it by hand — `git -C <repo> diff --name-only --ignore-cr-at-eol`
 lists only the genuinely edited files. See [docs/SCANNING.md](docs/SCANNING.md) for the exact rule.
 
@@ -167,7 +180,7 @@ folder like `node_modules`.
 
 ```bat
 tools\run_tests.bat              REM unit tests
-tools\run_integration_tests.bat  REM integration tests (creates real temp git repos)
+tools\run_integration_tests.bat  REM integration tests (real temp git repos, offscreen GUI)
 tools\menu_smoke.bat             REM manual: the arrow-key menus in a real terminal
 ```
 
@@ -177,6 +190,7 @@ helper, so nothing else drives a real menu. Run it by hand after touching
 
 ## Dependencies
 
-Runtime: `SQLAlchemy` (stores the ask-modes' mutes and visits in a SQLite `mutes.db`) and
-`pick[blessed]` (the arrow-key menus). Everything else is the Python standard
-library. Dev tooling: `ruff`, `mypy`, `pytest`.
+Runtime: `SQLAlchemy` (stores the ask-modes' mutes and visits in a SQLite `mutes.db`),
+`pick[blessed]` (the arrow-key menus), `PySide6` (the desktop window) and
+`python-localization` (the window's translations in `lang/`). Everything else is the Python
+standard library. Dev tooling: `ruff`, `mypy`, `pytest`.

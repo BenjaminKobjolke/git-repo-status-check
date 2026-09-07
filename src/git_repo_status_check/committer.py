@@ -6,14 +6,12 @@ here rather than in the git-scanning helper, which only reads repo state.
 
 from __future__ import annotations
 
-import subprocess
-import sys
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
-from . import menu, repo_actions
+from . import frontend, menu, repo_actions
 from .constants import (
     AGE_DATE_FORMAT,
     COMMIT_HEADER,
@@ -57,7 +55,7 @@ def commit_interactive(
     caller filters them out. No-op when stdin is not a TTY
     (nothing to prompt).
     """
-    if not sys.stdin.isatty():
+    if not menu.is_interactive():
         print(COMMIT_NEEDS_TTY)
         return True
 
@@ -196,8 +194,8 @@ def _list_remotes(path: Path) -> None:
 
 def _run_commit(command: str, status: RepoStatus) -> None:
     """Run the commit command in the repo dir with live output; report the result."""
-    result = subprocess.run(command, shell=True, cwd=str(status.path), check=False)
-    if result.returncode == 0:
+    code = frontend.get().run_live(command, status.path, shell=True)
+    if code == 0:
         print(f"  OK: {status.path}")
     else:
-        print(f"  FAILED (exit {result.returncode}): {status.path}")
+        print(f"  FAILED (exit {code}): {status.path}")

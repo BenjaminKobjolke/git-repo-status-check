@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import subprocess
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -164,7 +166,7 @@ def test_non_tty_returns_without_prompting(
 
     monkeypatch.setattr(menu, "choose", _fail)
     run = MagicMock()
-    monkeypatch.setattr(committer.subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "run", run)
 
     committer.commit_interactive(_statuses(1), "do-commit", store)
     run.assert_not_called()
@@ -173,7 +175,7 @@ def test_non_tty_returns_without_prompting(
 def test_mute_stores_timeframe_and_skips_commit(
     monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
 ) -> None:
-    monkeypatch.setattr(committer.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(time, "time", lambda: 1000.0)
     _answers(monkeypatch, "m", "m", "1w")  # more -> mute -> one week
     committer.commit_interactive(_statuses(1), "do-commit", store)
 
@@ -184,7 +186,7 @@ def test_mute_stores_timeframe_and_skips_commit(
 def test_mute_reprompts_on_invalid_timeframe(
     monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
 ) -> None:
-    monkeypatch.setattr(committer.time, "time", lambda: 0.0)
+    monkeypatch.setattr(time, "time", lambda: 0.0)
     # more -> mute -> custom -> bad text, then custom -> good text
     _answers(monkeypatch, "m", "m", "custom", "nope", "custom", "1d")
     committer.commit_interactive(_statuses(1), "do-commit", store)

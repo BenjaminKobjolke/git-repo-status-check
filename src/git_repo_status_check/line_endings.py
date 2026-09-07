@@ -6,12 +6,12 @@ itself stop reporting them. User-facing I/O (print/input) like committer.py, not
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import menu
-from .constants import (
+from .constants import NUL
+from .repair_constants import (
     AUTOCRLF_CANDIDATES,
     FIX_APPLIED,
     FIX_FAILED,
@@ -19,7 +19,7 @@ from .constants import (
     FIX_MENU,
     FIX_NEEDS_TTY,
     FIX_NONE_FOUND,
-    GIT_ADD_PATHS,
+    GIT_ADD_STDIN_PATHS,
     GIT_CONFIG_GET_LOCAL_AUTOCRLF,
     GIT_CONFIG_SET_AUTOCRLF,
     GIT_CONFIG_UNSET_AUTOCRLF,
@@ -54,24 +54,23 @@ def repair(repo: Path, noisy: set[str]) -> RepairResult:
     output rather than guessed. When none of them works the previous value is put back.
     """
     original = _local_autocrlf(repo)
-    paths = sorted(noisy)
     for value in AUTOCRLF_CANDIDATES:
         run_git(repo, (*GIT_CONFIG_SET_AUTOCRLF, value))
         # The right conversion alone is not enough: git keeps reporting the files until the
         # index's cached stat data is refreshed ("needs update"), which `git add` does. It is
         # only run once the diff confirms there is no content left to stage.
-        if _content_matches(repo, paths):
-            run_git(repo, (*GIT_ADD_PATHS, *paths))
+        if _content_matches(repo, noisy):
+            run_git(repo, GIT_ADD_STDIN_PATHS, input=NUL.join(sorted(noisy)))
             if not changed_paths(repo) & noisy:
                 return RepairResult(repo=repo, autocrlf=value, fixed=len(noisy))
     _restore_autocrlf(repo, original)
     return RepairResult(repo=repo, autocrlf=None, fixed=0)
 
 
-def _content_matches(repo: Path, paths: list[str]) -> bool:
+def _content_matches(repo: Path, paths: set[str]) -> bool:
     """True when ``paths`` have no content difference left under the current conversion."""
-    out = run_git(repo, (*GIT_DIFF_WORKTREE_NAMES, *paths))
-    return out is not None and not out.strip()
+    out = run_git(repo, GIT_DIFF_WORKTREE_NAMES)
+    return out is not None and not set(out.split(NUL)) & paths
 
 
 def fix_interactive(settings: Settings) -> None:
@@ -80,7 +79,7 @@ def fix_interactive(settings: Settings) -> None:
     Such repos are invisible to the normal report (the filter empties them), so this mode
     does its own walk instead of consuming ``scan_all``. No-op when stdin is not a TTY.
     """
-    if not sys.stdin.isatty():
+    if not menu.is_interactive():
         print(FIX_NEEDS_TTY)
         return
 

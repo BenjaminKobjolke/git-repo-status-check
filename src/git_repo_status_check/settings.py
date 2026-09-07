@@ -23,18 +23,16 @@ from .constants import (
 )
 from .duration import parse_duration
 
-_EXAMPLE_CONTENT = json.dumps(
-    {
-        KEY_FOLDERS: ["D:\\GIT"],
-        KEY_COMMIT_COMMAND: 'codex --yolo "git commit and push"',
-        KEY_FILE_EXPLORER: 'explorer "' + REPO_PATH_TOKEN + '"',
-        KEY_IGNORE_PREFIXES: ["_old_"],
-        KEY_RENAME_PREFIX: "_old_",
-        KEY_MIN_MODIFIED_AGE: "1h",
-        KEY_MIN_VISIT_AGE: "1h",
-    },
-    indent=2,
-)
+# The template written next to a missing settings file; also the GUI's blank document.
+EXAMPLE_SETTINGS: dict[str, object] = {
+    KEY_FOLDERS: ["D:\\GIT"],
+    KEY_COMMIT_COMMAND: 'codex --yolo "git commit and push"',
+    KEY_FILE_EXPLORER: 'explorer "' + REPO_PATH_TOKEN + '"',
+    KEY_IGNORE_PREFIXES: ["_old_"],
+    KEY_RENAME_PREFIX: "_old_",
+    KEY_MIN_MODIFIED_AGE: "1h",
+    KEY_MIN_VISIT_AGE: "1h",
+}
 
 
 class SettingsError(Exception):
@@ -62,7 +60,7 @@ class Settings:
         """
         if not path.exists():
             example = path.with_name(EXAMPLE_SETTINGS_FILE)
-            example.write_text(_EXAMPLE_CONTENT, encoding="utf-8")
+            example.write_text(json.dumps(EXAMPLE_SETTINGS, indent=2), encoding="utf-8")
             raise SettingsError(
                 f"No settings file at {path}. Wrote a template to {example} — "
                 f"copy it to {path.name} and set your folders."

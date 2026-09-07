@@ -48,23 +48,6 @@ MODIFIED_ONLY_CODES: frozenset[str] = frozenset({" M", "M ", "MM"})
 
 DEBUG_LINE_ENDING_FILTERED = "{repo}: ignored {count} line-ending-only change(s)"
 
-# --fix-line-endings writes only the repo's local core.autocrlf. `--default ""` makes an unset
-# key an empty answer instead of exit code 1, so "unset" and "set to something" read the same way.
-GIT_CONFIG_GET_LOCAL_AUTOCRLF: tuple[str, ...] = (
-    "config",
-    "--local",
-    "--get",
-    "--default",
-    "",
-    "core.autocrlf",
-)
-GIT_CONFIG_SET_AUTOCRLF: tuple[str, ...] = ("config", "core.autocrlf")
-GIT_CONFIG_UNSET_AUTOCRLF: tuple[str, ...] = ("config", "--unset", "core.autocrlf")
-
-# Paths with a real content difference left, once the conversion above has been applied. Empty
-# output means the file and its blob agree and only the index's cached stat data is stale.
-GIT_DIFF_WORKTREE_NAMES: tuple[str, ...] = ("diff", "--name-only", "-z", "--")
-
 # Remote listing for the submenu's [u]rl key. `-v` is the one form that prints the URLs; it
 # names each remote twice (fetch + push), so only the fetch rows are shown.
 GIT_REMOTE_VERBOSE: tuple[str, ...] = ("remote", "-v")
@@ -104,14 +87,18 @@ GIT_PUSH_SET_UPSTREAM: tuple[str, ...] = ("push", "-u")
 GIT_TERMINAL_PROMPT_ENV = "GIT_TERMINAL_PROMPT"
 GIT_TERMINAL_PROMPT_OFF = "0"
 
-# Refreshes that stale stat data. Only ever run on paths the diff above just reported as
-# content-identical, so it can never stage an actual change.
-GIT_ADD_PATHS: tuple[str, ...] = ("add", "--")
-
-# Values tried, in order. Which one clears the phantom changes depends on whether the blobs
-# hold CRLF or LF, so the repair tries and verifies instead of guessing. "true" comes first
-# because LF blobs in a CRLF worktree is the common Windows case.
-AUTOCRLF_CANDIDATES: tuple[str, ...] = ("true", "false")
+# Run before every pull on the paths `line_ending_only_paths` reports: git refuses to merge
+# over a file it sees as modified, even when the only difference is a CR at end of line.
+# HEAD rather than the index so a CR-only *staged* diff is cleared too. The paths arrive on
+# stdin, NUL-separated (same reason as `-z` everywhere else): no quoting, and no Windows
+# command-line length cap for a repo with hundreds of such files.
+GIT_CHECKOUT_HEAD_STDIN_PATHS: tuple[str, ...] = (
+    "checkout",
+    "HEAD",
+    "--pathspec-from-file=-",
+    "--pathspec-file-nul",
+)
+PULL_LINE_ENDINGS_RESET = "  Reset {count} line-ending-only file(s) so the pull can proceed."
 
 # Dirs we never descend into while looking for repos (speed + noise).
 NOISE_DIRS: frozenset[str] = frozenset(
@@ -185,6 +172,8 @@ MENU_BACKEND = "blessed"
 MENU_PAUSE_PROMPT = "  Press Enter to continue... "
 MENU_NEEDS_TTY = "Menus need a real terminal; this is not a console."
 MENU_ABORTED = "Aborted."
+# The walk's narration: the repo currently being scanned (one overwritten line / status bar).
+PROGRESS_LINE = "Scanning: {path}"
 
 # Checked before any walk starts: a pull walk is minutes, so a missing command fails first.
 ASK_REQUIRES_COMMIT_COMMAND = "{flag} requires a non-empty commit_command in settings.json."
@@ -226,18 +215,6 @@ MUTE_PROMPT_HELP = "  Please enter a duration like 4h, 1d, 1w, 1m, 3d, or 2w."
 NO_REMOTE_CONFIGURED = "  (no remote)"
 EXPLORER_NOT_CONFIGURED = f'  No "{KEY_FILE_EXPLORER}" configured in settings.'
 RENAME_PREFIX_NOT_CONFIGURED = f'  No "{KEY_RENAME_PREFIX}" configured in settings.'
-
-# --fix-line-endings prompts and results.
-FIX_NEEDS_TTY = "--fix-line-endings needs an interactive terminal; nothing to do."
-FIX_NONE_FOUND = "No repos with line-ending-only changes."
-FIX_HEADER = "{repo}  -  {count} line-ending-only change(s)"
-FIX_MENU = (
-    ("Fix line endings", "y"),
-    ("Skip", "n"),
-    ("Abort", "a"),
-)
-FIX_APPLIED = "  OK: core.autocrlf={value} — {count} phantom change(s) gone."
-FIX_FAILED = "  FAILED: no core.autocrlf value made it clean (a .gitattributes rule likely wins)."
 
 # --pull-ask prompts and labels.
 PULL_NEEDS_TTY = "--pull-ask needs an interactive terminal; nothing to do."

@@ -5,6 +5,8 @@ description = "Scan configured folders for git repos with uncommitted changes."
 requires-python = ">=3.11"
 dependencies = [
     "pick[blessed]>=2.6.0",
+    "pyside6>=6.11.2",
+    "python-localization",
     "sqlalchemy>=2.0.52",
 ]
 
@@ -34,3 +36,11 @@ extend-exclude = [".claude"]
 python_version = "3.11"
 strict = true
 mypy_path = "src"
+
+[tool.uv.sources]
+python-localization = { git = "https://github.com/BenjaminKobjolke/python-localization.git" }
+
+[[tool.mypy.overrides]]
+# python-localization ships no py.typed marker; its API is small and used through gui/i18n.py only.
+module = "python_localization.*"
+ignore_missing_imports = true

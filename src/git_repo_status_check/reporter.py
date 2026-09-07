@@ -2,29 +2,21 @@
 
 from __future__ import annotations
 
-import shutil
-import sys
 from collections.abc import Callable
 
+from . import frontend
 from .models import RepoStatus
 from .mute_store import ScanSkip
 
 
 def progress(path: object) -> None:
-    """Overwrite one stderr line with the repo currently being scanned (TTY only)."""
-    if not sys.stderr.isatty():
-        return
-    width = shutil.get_terminal_size().columns
-    line = f"Scanning: {path}"[: width - 1]
-    print(f"\r{line:<{width - 1}}", end="", file=sys.stderr, flush=True)
+    """Narrate the walk: the repo currently being scanned (a console line, or a status bar)."""
+    frontend.get().progress(path)
 
 
 def clear_progress() -> None:
-    """Blank the progress line so it doesn't linger before the report (TTY only)."""
-    if not sys.stderr.isatty():
-        return
-    width = shutil.get_terminal_size().columns
-    print(f"\r{'':<{width - 1}}\r", end="", file=sys.stderr, flush=True)
+    """Remove the narration so it doesn't linger before the report."""
+    frontend.get().clear_progress()
 
 
 def report_skipped(skip: ScanSkip | None) -> None:

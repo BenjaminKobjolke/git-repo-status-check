@@ -1,0 +1,73 @@
+{
+  "window": {
+    "title": "Git Repo Status Check"
+  },
+  "tab": {
+    "run": "Ausführen",
+    "settings": "Einstellungen"
+  },
+  "run": {
+    "heading": "Ausführen",
+    "subheading": "Modus wählen. Die Git-Ausgabe läuft ins Protokoll; das Menü eines Repos erscheint darunter.",
+    "empty": "Noch nichts ausgeführt. Oben einen Modus wählen.",
+    "started": "=== {mode} ===",
+    "finished": "Fertig (Exit-Code {code}).",
+    "action": {
+      "scan": "Scannen",
+      "commit_ask": "Commit abfragen",
+      "pull_ask": "Pull abfragen",
+      "push_ask": "Push abfragen",
+      "sync_ask": "Sync abfragen",
+      "fix_line_endings": "Zeilenenden reparieren",
+      "list_muted": "Stummgeschaltete anzeigen",
+      "stop": "Stopp"
+    },
+    "option": {
+      "all": "Jedes Repo abfragen (Stummschaltungen und Besuche ignorieren)",
+      "limit": "Limit",
+      "limit_none": "kein Limit"
+    }
+  },
+  "prompt": {
+    "ok": "OK"
+  },
+  "status": {
+    "idle": "Bereit",
+    "running": "{mode} läuft…",
+    "scanning": "Scanne: {path}",
+    "stopping": "Wird nach dem aktuellen Schritt beendet…"
+  },
+  "settings": {
+    "heading": "Einstellungen",
+    "subheading": "Gespeichert in {path}. Nur die Ordner sind Pflicht.",
+    "saved": "Gespeichert.",
+    "invalid": "! {error}",
+    "pick_folder": "Wurzelordner zum Scannen wählen",
+    "label": {
+      "folders": "Zu scannende Ordner",
+      "commit_command": "Commit-Befehl",
+      "file_explorer": "Dateimanager-Befehl",
+      "rename_prefix": "Umbenennungs-Präfix",
+      "ignore_prefixes": "Ignorierte Präfixe",
+      "min_modified_age": "Mindestalter der Änderung",
+      "min_visit_age": "Mindestalter des Besuchs"
+    },
+    "hint": {
+      "folders": "Jeder Wurzelordner wird rekursiv durchsucht; die Suche endet beim ersten gefundenen .git.",
+      "commit_command": "Wird im Verzeichnis des Repos ausgeführt, wenn Commit gewählt wird.",
+      "file_explorer": "[[REPO_PATH]] wird durch den Repo-Pfad ersetzt — selbst in Anführungszeichen setzen.",
+      "rename_prefix": "Wird von „Repo umbenennen“ vor den Ordnernamen gesetzt; auch bei den ignorierten Präfixen eintragen.",
+      "ignore_prefixes": "Kommagetrennt. Ordner, deren Name mit einem davon beginnt, werden übersprungen.",
+      "min_modified_age": "„Commit abfragen“ lässt kürzlich geänderte Repos in Ruhe, z. B. 1h, 3d, 2w. Leer: aus.",
+      "min_visit_age": "Ein erledigtes Repo bleibt so lange unbehelligt, z. B. 1h. Leer: Standard 1h."
+    },
+    "option": {
+      "visit_age_off": "Aus (null)"
+    },
+    "action": {
+      "add_folder": "Ordner hinzufügen…",
+      "remove_folder": "Auswahl entfernen",
+      "save": "Speichern"
+    }
+  }
+}

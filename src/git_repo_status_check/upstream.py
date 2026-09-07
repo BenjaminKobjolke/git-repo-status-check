@@ -13,13 +13,13 @@ User-facing I/O (menus via menu.py, print) like committer.py, not logging.
 
 from __future__ import annotations
 
-import sys
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, Protocol, TypeVar
 
+from . import menu
 from .constants import (
     GIT_BEHIND_AHEAD,
     GIT_BEHIND_AHEAD_SEPARATOR,
@@ -182,7 +182,7 @@ def ask_interactive(
     repo is measured again — what the walk *records* is unaffected. No-op when stdin is not
     a TTY — there is nothing to prompt.
     """
-    if not sys.stdin.isatty():
+    if not menu.is_interactive():
         print(mode.needs_tty)
         return True
 

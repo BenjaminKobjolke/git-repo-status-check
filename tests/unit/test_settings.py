@@ -18,7 +18,7 @@ from git_repo_status_check.constants import (
     KEY_RENAME_PREFIX,
 )
 from git_repo_status_check.settings import (
-    _EXAMPLE_CONTENT,
+    EXAMPLE_SETTINGS,
     Settings,
     SettingsError,
     resolve_settings_path,
@@ -178,7 +178,7 @@ def test_generated_example_settings_are_valid(tmp_path: Path) -> None:
     """The shipped template must survive validation — a blank command key would raise."""
     folder = tmp_path / "GIT"
     folder.mkdir()
-    data = {**json.loads(_EXAMPLE_CONTENT), "folders": [str(folder)]}
+    data = {**EXAMPLE_SETTINGS, "folders": [str(folder)]}
     path = tmp_path / "settings.json"
     path.write_text(json.dumps(data), encoding="utf-8")
 

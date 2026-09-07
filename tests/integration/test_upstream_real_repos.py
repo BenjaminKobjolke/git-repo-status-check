@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from git_repo_status_check.pusher import RepoAhead, measure_ahead
-from git_repo_status_check.repo_actions import run_push
+from git_repo_status_check.repo_actions import run_pull, run_push
 from git_repo_status_check.settings import Settings
 from git_repo_status_check.upstream import walk_found, walk_upstream
 
@@ -129,3 +129,20 @@ def test_push_sends_local_commits_to_a_bare_origin(tmp_path: Path) -> None:
 
     assert run_push(clone, ("push",)) is True
     assert _git(bare, "rev-parse", "main") == _git(clone, "rev-parse", "HEAD")
+
+
+def test_pull_succeeds_over_line_ending_noise(tmp_path: Path) -> None:
+    # LF blob, CRLF worktree copy, conversion off: the scanner calls the clone clean, but a
+    # plain `git pull` refuses to overwrite the "modified" file. The pull must clear that
+    # noise itself instead of dead-ending on a repo the tool just reported as clean.
+    origin = _init_repo(tmp_path / "origin")
+    (origin / "readme.txt").write_bytes(b"one\ntwo\n")
+    _git(origin, "commit", "-am", "lf lines")
+    clone = _clone(origin, tmp_path / "roots" / "clone")
+    _git(clone, "config", "core.autocrlf", "false")
+    (clone / "readme.txt").write_bytes(b"one\r\ntwo\r\n")
+    (origin / "readme.txt").write_bytes(b"one\nthree\n")
+    _git(origin, "commit", "-am", "upstream edit")
+
+    assert run_pull(clone) is True
+    assert (clone / "readme.txt").read_bytes() == b"one\nthree\n"

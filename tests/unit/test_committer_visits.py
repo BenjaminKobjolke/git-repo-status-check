@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -30,7 +31,7 @@ def test_leaving_a_repos_menu_records_a_visit(
     label: str,
 ) -> None:
     """Every way out of the menu counts as "you looked at it" -- see main.build_skip_reason."""
-    monkeypatch.setattr(committer.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(time, "time", lambda: 1000.0)
     _answers(monkeypatch, *answers)
     committer.commit_interactive(_statuses(1), "do-commit", store)
 
@@ -42,7 +43,7 @@ def test_abort_still_records_the_repo_you_were_shown(
 ) -> None:
     # The visit is written before the menu is drawn, so the repo you bailed out on does not
     # greet you again on the very next run.
-    monkeypatch.setattr(committer.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(time, "time", lambda: 1000.0)
     _answers(monkeypatch, "a")
     committer.commit_interactive(_statuses(1), "do-commit", store)
 
@@ -53,7 +54,7 @@ def test_abort_leaves_the_repos_you_never_saw_unvisited(
     monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore
 ) -> None:
     """Being shown a repo settles it; the ones the loop never reached stay untouched."""
-    monkeypatch.setattr(committer.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(time, "time", lambda: 1000.0)
     _answers(monkeypatch, "s", "a")
     committer.commit_interactive(_statuses(3), "do-commit", store)
 

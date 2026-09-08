@@ -10,6 +10,11 @@ from pathlib import Path
 import pytest
 
 from git_repo_status_check import scanner, upstream
+from git_repo_status_check.constants import (
+    GIT_FETCH,
+    GIT_FETCH_LOW_SPEED_SECONDS,
+    GIT_FETCH_TIMEOUT_SECONDS,
+)
 from git_repo_status_check.settings import Settings
 
 from .helpers import _stub_upstream_git as _stub_git
@@ -58,7 +63,7 @@ def test_results_arrive_in_walk_order(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         upstream,
         "run_git",
-        lambda _repo, args, quiet=False: (
+        lambda _repo, args, quiet=False, timeout=None: (
             "origin/main\n"
             if args[0] == "rev-parse"
             else next(behind)
@@ -88,3 +93,27 @@ def test_upstream_counts_parses_behind_and_ahead() -> None:
     assert upstream.upstream_counts("2\t3\n") == (2, 3)
     assert upstream.upstream_counts(None) == (0, 0)
     assert upstream.upstream_counts("nonsense\n") == (0, 0)
+
+
+def test_fetch_is_run_with_a_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    # One unreachable remote must not be able to hang the whole walk on its fetch.
+    seen: dict[str, object] = {}
+
+    def run_git(
+        _repo: Path, args: tuple[str, ...], quiet: bool = False, timeout: float | None = None
+    ) -> str | None:
+        if "fetch" in args:
+            seen["timeout"] = timeout
+        return None
+
+    monkeypatch.setattr(upstream, "run_git", run_git)
+    upstream.measure(Path("repo0"))
+    assert seen["timeout"] == GIT_FETCH_TIMEOUT_SECONDS
+
+
+def test_fetch_tells_git_to_give_up_on_a_stalled_transfer() -> None:
+    # The process timeout alone cannot end a stalled fetch promptly: the transport child
+    # inherits the pipes and keeps them open. git has to be able to end itself.
+    assert "http.lowSpeedLimit=1" in GIT_FETCH
+    assert f"http.lowSpeedTime={GIT_FETCH_LOW_SPEED_SECONDS}" in GIT_FETCH
+    assert GIT_FETCH_LOW_SPEED_SECONDS < GIT_FETCH_TIMEOUT_SECONDS

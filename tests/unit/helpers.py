@@ -62,7 +62,9 @@ def _stub_upstream_git(
     """
     calls: list[tuple[str, ...]] = []
 
-    def run_git(_repo: Path, args: tuple[str, ...], quiet: bool = False) -> str | None:
+    def run_git(
+        _repo: Path, args: tuple[str, ...], quiet: bool = False, timeout: float | None = None
+    ) -> str | None:
         calls.append(args)
         if args[0] == "rev-parse":
             return None if upstream_name is None else f"{upstream_name}\n"

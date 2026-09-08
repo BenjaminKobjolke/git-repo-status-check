@@ -62,7 +62,19 @@ GIT_REMOTE_FETCH_SUFFIX = "(fetch)"
 # --pull-ask: bring the remote refs up to date, then measure this branch against its upstream.
 # `--quiet` because the fetch runs per repo across a whole root and its progress chatter would
 # bury the report; failures still surface through run_git.
-GIT_FETCH: tuple[str, ...] = ("fetch", "--quiet")
+# `http.lowSpeed*`: a remote that accepts the connection and then never answers (a VPN-only
+# server, a dead tunnel) leaves curl waiting forever and stops the whole walk on that one repo.
+# Below 1 byte/s for this long, git ends *itself* -- killing it from outside is not enough,
+# the transport child inherits the pipes and holds them open long after.
+GIT_FETCH_LOW_SPEED_SECONDS = 15
+GIT_FETCH: tuple[str, ...] = (
+    "-c",
+    "http.lowSpeedLimit=1",
+    "-c",
+    f"http.lowSpeedTime={GIT_FETCH_LOW_SPEED_SECONDS}",
+    "fetch",
+    "--quiet",
+)
 # The tracking branch's name ("origin/main"). Exits non-zero when there is none -- a detached
 # HEAD or a branch nobody pushed -- which is exactly how such repos are skipped.
 GIT_UPSTREAM_NAME: tuple[str, ...] = (
@@ -92,6 +104,11 @@ GIT_PUSH_SET_UPSTREAM: tuple[str, ...] = ("push", "-u")
 # the whole walk. Set once for the process, so no env has to be threaded through run_git.
 GIT_TERMINAL_PROMPT_ENV = "GIT_TERMINAL_PROMPT"
 GIT_TERMINAL_PROMPT_OFF = "0"
+
+# Backstop for the stalls curl's rate timer never sees (a connect that hangs before the first
+# byte). Longer than the limit above, so a fetch git can end by itself always does.
+GIT_FETCH_TIMEOUT_SECONDS = 30.0
+GIT_TIMEOUT_LOG = "git {args} timed out after {seconds:.0f}s in {repo} — skipping"
 
 # Run before every pull on the paths `line_ending_only_paths` reports: git refuses to merge
 # over a file it sees as modified, even when the only difference is a CR at end of line.

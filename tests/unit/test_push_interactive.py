@@ -109,7 +109,9 @@ def _held_back(
     """Run the whole mode over one repo with git recorded; return the git calls it made."""
     calls: list[tuple[str, ...]] = []
 
-    def run_git(_repo: Path, args: tuple[str, ...], quiet: bool = False) -> str | None:
+    def run_git(
+        _repo: Path, args: tuple[str, ...], quiet: bool = False, timeout: float | None = None
+    ) -> str | None:
         calls.append(args)
         return "origin/main\n" if args[0] == "rev-parse" else counts
 

@@ -24,6 +24,7 @@ from .constants import (
     GIT_BEHIND_AHEAD,
     GIT_BEHIND_AHEAD_SEPARATOR,
     GIT_FETCH,
+    GIT_FETCH_TIMEOUT_SECONDS,
     GIT_UPSTREAM_NAME,
     PULL_HEADER,
     PULL_HEADER_DIRTY,
@@ -93,8 +94,12 @@ def measure(repo: Path) -> RepoUpstream | None:
 
     None also covers every repo the question simply does not apply to: no tracking branch,
     a detached HEAD, an unreachable remote.
+
+    The fetch is the one call in the walk that reaches the network, so it is the one that
+    carries a timeout -- a remote that accepts the connection and then stalls would otherwise
+    hang the whole run on this repo.
     """
-    run_git(repo, GIT_FETCH, quiet=True)
+    run_git(repo, GIT_FETCH, quiet=True, timeout=GIT_FETCH_TIMEOUT_SECONDS)
     name = tracking_branch(repo)
     if name is None:
         return None

@@ -297,3 +297,29 @@ def test_find_repos_default_keeps_prefixed_dirs(tmp_path: Path) -> None:
     (tmp_path / "_old_foo" / GIT_DIR).mkdir(parents=True)
     found = list(scanner.find_repos(tmp_path))
     assert found == [tmp_path / "_old_foo"]
+
+
+def test_run_git_timeout_reads_as_a_failure(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # An unreachable remote can leave `git fetch` blocked on the socket forever; the timeout
+    # must end it and report "no answer", never propagate and abort the walk.
+    def run(command: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(cmd=command, timeout=30.0)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with caplog.at_level(logging.WARNING, logger="git_repo_status_check"):
+        assert scanner.run_git(Path("repo"), ("fetch",), timeout=30.0) is None
+    assert any("timed out" in r.getMessage() for r in caplog.records)
+
+
+def test_run_git_passes_the_timeout_to_the_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def run(command: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs)
+        return _fake_completed("")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    scanner.run_git(Path("repo"), ("fetch",), timeout=30.0)
+    assert captured["timeout"] == 30.0

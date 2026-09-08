@@ -16,6 +16,7 @@ from .constants import (
     GIT_OUTPUT_ENCODING,
     GIT_OUTPUT_ERRORS,
     GIT_STATUS_PORCELAIN,
+    GIT_TIMEOUT_LOG,
     GITMODULES_FILE,
     MODIFIED_ONLY_CODES,
     NOISE_DIRS,
@@ -45,7 +46,11 @@ def find_repos(root: Path, ignore_prefixes: tuple[str, ...] = ()) -> Iterator[Pa
 
 
 def run_git(
-    repo: Path, args: tuple[str, ...], quiet: bool = False, input: str | None = None
+    repo: Path,
+    args: tuple[str, ...],
+    quiet: bool = False,
+    input: str | None = None,
+    timeout: float | None = None,
 ) -> str | None:
     """Run ``git -C <repo> <args>``; return stdout, or None if git failed.
 
@@ -57,6 +62,10 @@ def run_git(
 
     ``input`` is handed to git on stdin, for the ``--pathspec-from-file=-`` commands: a
     path list on the command line has a length cap on Windows, stdin has none.
+
+    ``timeout`` (seconds) kills a git that stops answering and reads as a failure (None).
+    Only the commands that talk to a remote need it -- a local command that hangs is a bug
+    worth seeing, an unreachable remote is an ordinary Tuesday.
     """
     try:
         result = subprocess.run(
@@ -67,10 +76,15 @@ def run_git(
             errors=GIT_OUTPUT_ERRORS,
             check=False,
             input=input,
+            timeout=timeout,
             creationflags=SUBPROCESS_NO_WINDOW,
         )
     except FileNotFoundError:
         AppLogger.error("git executable not found on PATH.")
+        return None
+    except subprocess.TimeoutExpired:
+        log = AppLogger.debug if quiet else AppLogger.warning
+        log(GIT_TIMEOUT_LOG.format(args=" ".join(args), seconds=timeout, repo=repo))
         return None
     if result.returncode != 0:
         stderr = result.stderr.strip()

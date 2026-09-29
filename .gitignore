@@ -19,3 +19,4 @@ mutes.db-journal
 mutes.db-wal
 graphify-out/
 src/graphify-out/
+tickets/

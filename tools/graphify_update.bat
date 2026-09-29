@@ -25,6 +25,7 @@ REM ----------------------------------------------------------------------------
 REM This bat lives in tools\ ; run everything from the repo root so graphify
 REM resolves the live graph at .\graphify-out\ (relative to cwd).
 pushd "%~dp0.."
+set "RC=0"
 
 REM Resolve the graphify launcher: prefer PATH, else derive from the interpreter
 REM the last build saved (graphify.exe sits next to that python.exe).
@@ -43,6 +44,7 @@ if errorlevel 1 (
 
 echo === [1/2] code-only AST refresh (no LLM) : %CODE_DIR% ===
 "%GRAPHIFY%" update "%CODE_DIR%"
+if not "!ERRORLEVEL!"=="0" set "RC=1"
 echo.
 
 echo === [2/2] smoke test: live root graph ===
@@ -55,13 +57,15 @@ REM Report directed flag + node count of the LIVE root graph (should be directed
 if exist "graphify-out\.graphify_python" (
   set /p GPY2=<graphify-out\.graphify_python
   "!GPY2!" -c "import json;d=json.load(open('graphify-out/graph.json',encoding='utf-8'));print('directed:',d.get('directed'),'  nodes:',len(d.get('nodes',[])))"
+  if not "!ERRORLEVEL!"=="0" set "RC=1"
 )
 echo.
 echo --- god nodes (top 5) ---
 "%GRAPHIFY%" god-nodes --top 5
+if not "!ERRORLEVEL!"=="0" set "RC=1"
 echo.
 echo --- sample query ---
 "%GRAPHIFY%" query "What are the main modules and how do they connect?"
+if not "!ERRORLEVEL!"=="0" set "RC=1"
 
-popd
-endlocal
+popd & endlocal & exit /b %RC%

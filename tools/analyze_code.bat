@@ -7,6 +7,10 @@ if not exist "%~dp0analyze_code_config.bat" (
 call "%~dp0analyze_code_config.bat"
 cd /d "%~dp0.."
 
-"%CLI_ANALYZER_PATH%\venv\Scripts\python.exe" "%CLI_ANALYZER_PATH%\main.py" --language %LANGUAGE% --path "." --verbosity minimal --output "code_analysis_results" --maxamountoferrors 50 --rules "code_analysis_rules.json"
+set "NOIN="
+if "%TICKETS_WATCHER_COMMAND_RUN%"=="1" set "NOIN=<NUL"
+"%CLI_ANALYZER_PATH%\venv\Scripts\python.exe" "%CLI_ANALYZER_PATH%\main.py" --language %LANGUAGE% --path "." --verbosity minimal --output "code_analysis_results" --maxamountoferrors 50 --rules "code_analysis_rules.json" %NOIN%
 
+set "RC=%ERRORLEVEL%"
 cd /d "%~dp0"
+exit /b %RC%

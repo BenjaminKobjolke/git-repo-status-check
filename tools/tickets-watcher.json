@@ -1,6 +1,6 @@
 {
   "files": {
-    "TICKETS_WATCHER_COMMANDS.md": 1
+    "TICKETS_WATCHER_COMMANDS.md": 2
   },
   "analysis_commands": [
     "tools\\run_tests.bat",

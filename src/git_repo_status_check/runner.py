@@ -2,13 +2,12 @@
 which stores, and in what order for ``--sync-ask``.
 
 ``main.py`` turns arguments into a ``RunRequest``; the GUI builds one from its buttons. Both
-hand it to ``run`` so the branch ladder, the commit-command check and the sync stage order
-are written once. User-facing output is ``print`` (captured by the GUI), not logging.
+hand it to ``run`` so the branch ladder and sync stage order are written once. User-facing
+output is ``print`` (captured by the GUI), not logging.
 """
 
 from __future__ import annotations
 
-import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -18,9 +17,6 @@ from pathlib import Path
 
 from .committer import commit_interactive
 from .constants import (
-    ASK_REQUIRES_COMMIT_COMMAND,
-    FLAG_COMMIT_ASK,
-    FLAG_SYNC_ASK,
     MUTED_LINE,
     MUTED_NONE,
     MUTED_SECTION_COMMIT,
@@ -64,9 +60,6 @@ class RunRequest:
     prompt_all: bool = False
     limit: int | None = None
 
-    def needs_commit_command(self) -> bool:
-        return self.mode in (Mode.COMMIT_ASK, Mode.SYNC_ASK)
-
     def needs_settings(self) -> bool:
         return self.mode is not Mode.LIST_MUTED
 
@@ -101,7 +94,7 @@ class Stores:
 
 
 def run(settings: Settings | None, stores: Stores, request: RunRequest) -> int:
-    """Run ``request``; return the process exit code (0 unless a precondition failed).
+    """Run ``request``; return the process exit code.
 
     ``settings`` may be None only for ``LIST_MUTED``, which never scans.
     """
@@ -116,12 +109,6 @@ def run(settings: Settings | None, stores: Stores, request: RunRequest) -> int:
     if request.mode is Mode.FIX_LINE_ENDINGS:
         fix_interactive(settings)
         return 0
-
-    # Fail before any walk (a pull walk is minutes) if the commit stage can't be honored.
-    if request.needs_commit_command() and not settings.commit_command:
-        flag = FLAG_SYNC_ASK if request.mode is Mode.SYNC_ASK else FLAG_COMMIT_ASK
-        print(ASK_REQUIRES_COMMIT_COMMAND.format(flag=flag), file=sys.stderr)
-        return 1
 
     if request.mode is Mode.SYNC_ASK:
         _sync_stages(settings, stores, request)
@@ -187,7 +174,7 @@ def _commit_stage(settings: Settings, store: MuteStore, ask: bool, request: RunR
     shown = report(statuses, limit=request.limit, skip_reason=skip_reason)
     report_skipped(skip)
 
-    if not (ask and settings.commit_command):
+    if not ask:
         return True
     return commit_interactive(
         shown,

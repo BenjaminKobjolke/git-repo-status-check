@@ -80,8 +80,11 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] 
 - `--limit N` — show at most `N` repos (newest changes first); summary still reports the true total.
   With `--commit-ask`, `N` counts only repos that are actually prompted for.
 - `--commit-ask` — after the report, show an arrow-key menu per dirty repo
-  (**Commit / More actions... / Skip / Abort**): arrow keys to move, Enter to confirm,
-  Ctrl-C to leave. *Commit* runs the `commit_command` from settings in that repo's directory.
+  (**Commit (run commit_command) / Commit with typed message / Open TortoiseGit commit
+  dialog / More actions... / Skip / Abort**): arrow keys to move, Enter to confirm,
+  Ctrl-C to leave. The typed option stages, commits and pushes using your message; the
+  TortoiseGit option opens its commit dialog. The configured-command entry is hidden when
+  `commit_command` is unset.
   *More actions...* opens a submenu (age of changed files / list changed files / remote url /
   pull / open in file explorer / rename repo / stash changes / mute repo / back).
   *Rename repo* prefixes the repo folder with `rename_prefix` so it drops out of the next scan;
@@ -94,8 +97,7 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] 
   or when the scan found nothing to commit in it. Repos changed more recently than the
   optional `min_modified_age` setting allows are still listed, labelled
   `[changed 12 minutes ago]`, and do not count against `--limit`.
-  Requires a non-empty `commit_command` (aborts before scanning if unset)
-  and an interactive terminal.
+  Needs an interactive terminal; `commit_command` is optional.
 - `--pull-ask` — the other direction: fetch every repo and show a menu
   (**Pull / Stash changes and pull / More actions... / Skip / Mute repo / Abort**) for each
   one that is *behind* its upstream. The stash entry appears only when the repo has local
@@ -118,7 +120,7 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] 
   See [docs/PUSH_ASK.md](docs/PUSH_ASK.md).
 - `--sync-ask` — all three in one run: `--pull-ask`, then `--commit-ask`, then `--push-ask`,
   each exactly as on its own (own menus, own mutes and visits). *Abort* in any stage ends the
-  run. Needs a `commit_command`, checked before the pull stage starts.
+  run. The commit stage works without `commit_command`.
   See [docs/SYNC_ASK.md](docs/SYNC_ASK.md).
 - `--all` — with any ask-mode, prompt for every repo, ignoring mutes,
   `min_visit_age` and `min_modified_age`. Mutes are kept, just not honored for this run.

@@ -25,9 +25,13 @@ acts on the current repo.
 uv run python main.py --commit-ask
 ```
 
-For each dirty repo you get an arrow-key menu — **Commit / More actions... / Skip / Abort**:
+For each dirty repo you get an arrow-key menu — **Commit (run commit_command) / Commit with
+typed message / Open TortoiseGit commit dialog / More actions... / Skip / Abort**:
 
-- **Commit** — run the `commit_command` in that repo (Codex's output streams live to your terminal).
+- **Commit (run commit_command)** — run the `commit_command` in that repo (Codex's output
+  streams live to your terminal).
+- **Commit with typed message** — type a message, then commit and push.
+- **Open TortoiseGit commit dialog** — open TortoiseGit's commit window for the repo.
 - **More actions...** — secondary actions (file ages, file list, pull, open in your file
   manager, mute); see [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md).
 - **Skip** — skip this repo.

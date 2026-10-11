@@ -62,3 +62,26 @@ def test_pull_on_a_repo_without_noise_touches_nothing_first(
     assert captured == []
     assert [args[0] for args in order] == ["pull"]
     assert "Reset" not in capsys.readouterr().out
+
+
+def test_commit_resets_line_endings_then_adds_and_commits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured, order = _stub_pull(monkeypatch, {"a.txt"})
+    assert repo_actions.run_commit(Path("repo"), "msg") is True
+    assert captured == [(*GIT_CHECKOUT_HEAD_STDIN_PATHS, "a.txt")]
+    assert order == [GIT_CHECKOUT_HEAD_STDIN_PATHS, ("add", "-A"), ("commit", "-m", "msg")]
+
+
+def test_commit_stops_when_add_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    _, order = _stub_pull(monkeypatch, set())
+
+    def fail_add(argv: tuple[str, ...], **_kwargs: object) -> MagicMock:
+        order.append(argv[3:])
+        result = MagicMock(spec=subprocess.CompletedProcess)
+        result.returncode = 1
+        return result
+
+    monkeypatch.setattr(subprocess, "run", fail_add)
+    assert repo_actions.run_commit(Path("repo"), "msg") is False
+    assert order == [("add", "-A")]

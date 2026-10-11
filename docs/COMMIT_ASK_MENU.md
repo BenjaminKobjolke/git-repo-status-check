@@ -5,8 +5,9 @@ newest first) and shows an arrow-key menu per repo. This documents every menu en
 For the flag itself and its requirements, see
 [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md).
 
-Needs an interactive terminal and a non-empty `commit_command` in settings (see
-[SETTINGS.md](SETTINGS.md)); the submenu's *Open in file explorer* additionally needs
+Needs an interactive terminal. Without `commit_command`, the configured-command entry is
+hidden; the typed-message and TortoiseGit entries remain available. The submenu's *Open in
+file explorer* additionally needs
 `file_explorer` and *Rename repo* needs `rename_prefix`, both optional — without them
 every other entry still works.
 Currently-muted repos, and repos already settled within the `min_visit_age` window (1 hour
@@ -33,15 +34,17 @@ live output. The unit tests replace the menu helper, so a real menu is only exer
 `tools\menu_smoke.bat` — run it by hand after touching `menu.py`.
 
 In the desktop window ([GUI.md](GUI.md)) the same menus appear as a row of buttons under
-the log, with the same labels and the same effects; typed input (a custom mute duration)
-becomes a text field.
+the log, with the same labels and effects; typed input (a commit message or custom mute
+duration) becomes a text field.
 
 ## Top menu
 
 ```
 <repo path>  -  <N> uncommitted
 
- > Commit
+ > Commit (run commit_command)
+   Commit with typed message
+   Open TortoiseGit commit dialog
    More actions...
    Skip
    Abort
@@ -49,7 +52,9 @@ becomes a text field.
 
 | Entry | Action |
 |-------|--------|
-| Commit | Run the configured `commit_command` in this repo's directory (output streams live). Then move to the next repo. |
+| Commit (run commit_command) | Run the configured command in this repo's directory (output streams live). This entry is hidden when no command is configured. |
+| Commit with typed message | Ask for one single-line message, then run `git add -A`, `git commit -m <message>`, and push to the upstream (or use `git push -u <remote> <branch>` when no upstream exists). No pull runs first. An empty message or failed add/commit returns to this repo's menu. A repo without a push target stays committed locally and reports that it was not pushed. If push fails, the commit stays local, the failure is shown, and the tool moves to the next repo. |
+| Open TortoiseGit commit dialog | Open `TortoiseGitProc.exe /command:commit /path:<repo>` and wait for the dialog to close. TortoiseGit's own Push button can push the commit. `TortoiseGitProc.exe` must be on `PATH`. |
 | More actions... | Open the **more** submenu (below). |
 | Skip | Skip this repo; move to the next. |
 | Abort | Abort the loop. No further repos are touched. |
@@ -96,8 +101,10 @@ Entries that print something wait for Enter before the next menu repaints the sc
 | Back | Back to the top menu for this repo. |
 
 The read-only entries (age, list, url, pull, explorer) act and re-show the submenu — they
-never consume the repo, and neither does a refused rename or a failed stash. Only *Commit* (top menu) commits; only
-*Mute repo* mutes; only a successful rename renames; only a successful stash stashes.
+never consume the repo, and neither does a refused rename or a failed stash. The three
+commit entries are *Commit (run commit_command)*, *Commit with typed message* and *Open
+TortoiseGit commit dialog*. Only *Mute repo* mutes; only a successful rename renames; only
+a successful stash stashes.
 
 ## See also
 

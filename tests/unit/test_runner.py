@@ -55,11 +55,13 @@ def test_no_threshold_means_actionable() -> None:
 
 
 def _run_commit_ask(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *extra: str
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *extra: str,
+    commit_command: str | None = "echo hi",
 ) -> dict[str, object]:
     """Run main in --commit-ask with the scan and the menu stubbed; return what it passed on."""
     settings_file = tmp_path / "settings.json"
-    settings_file.write_text('{"folders": ["."], "commit_command": "echo hi"}', encoding="utf-8")
+    command = f', "commit_command": "{commit_command}"' if commit_command else ""
+    settings_file.write_text('{"folders": ["."]' + command + "}", encoding="utf-8")
     seen: dict[str, object] = {}
 
     def fake_report(
@@ -74,7 +76,10 @@ def _run_commit_ask(
 
     monkeypatch.setattr(runner, "scan_all", fake_scan_all)
     monkeypatch.setattr(runner, "report", fake_report)
-    monkeypatch.setattr(runner, "commit_interactive", lambda *args, **kwargs: None)
+    def fake_commit(*args: object, **_kwargs: object) -> None:
+        seen["commit_args"] = args
+
+    monkeypatch.setattr(runner, "commit_interactive", fake_commit)
     assert main.main(["--settings", str(settings_file), "--commit-ask", *extra]) == 0
     return seen
 
@@ -106,6 +111,13 @@ def test_checked_repo_is_recorded_by_the_walk(
     assert callable(on_clean)
     on_clean(Path("repo0"))
     assert store.last_visit(_REPO) == _NOW
+
+
+def test_commit_ask_without_command_still_opens_the_menu(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen = _run_commit_ask(monkeypatch, tmp_path, commit_command=None)
+    assert seen["commit_args"][1] is None
 
 
 @pytest.mark.parametrize(("extra", "expected_all"), [((), False), (("--all",), True)])
@@ -161,8 +173,9 @@ def _run_sync_ask(
         seen["push_all"] = prompt_all
         return True
 
-    def fake_commit(*_a: object, **_k: object) -> bool:
+    def fake_commit(*args: object, **_kwargs: object) -> bool:
         order.append("commit")
+        seen["commit_args"] = args
         return commit_result
 
     monkeypatch.setattr(runner, "pull_interactive", fake_pull)
@@ -200,10 +213,10 @@ def test_sync_ask_abort_in_commit_stage_skips_push(
     assert order == ["pull", "commit"]
 
 
-def test_sync_ask_requires_commit_command(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_sync_ask_without_command_still_runs_all_stages(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    code, order, _ = _run_sync_ask(monkeypatch, tmp_path, commit_command="")
-    assert code == 1
-    assert order == []
-    assert "--sync-ask" in capsys.readouterr().err
+    code, order, seen = _run_sync_ask(monkeypatch, tmp_path, commit_command="")
+    assert code == 0
+    assert order == ["pull", "commit", "push"]
+    assert seen["commit_args"][1] is None

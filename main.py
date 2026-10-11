@@ -58,7 +58,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--commit-ask",
         action="store_true",
-        help="Show a menu per dirty repo and run the settings commit_command on commit.",
+        help="Show a menu per dirty repo: run commit_command, type a message, or open TortoiseGit.",
     )
     parser.add_argument(
         "--pull-ask",

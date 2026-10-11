@@ -58,8 +58,9 @@ settled.
 
 ### `commit_command`
 
-- Type: string. Optional; omit it if you don't use `--commit-ask`.
-- The command run in each repo's directory when you choose *Commit* in the `--commit-ask` menu
+- Type: string. Optional; omit it if you do not use the configured-command menu entry.
+- The command run in each repo's directory when you choose *Commit (run commit_command)* in
+  the `--commit-ask` menu
   (see [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md)).
 - Run via the shell with the working directory set to the repo, so the command needs no repo
   path of its own. Output streams live to the console.

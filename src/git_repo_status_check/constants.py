@@ -198,15 +198,12 @@ MENU_ABORTED = "Aborted."
 # The walk's narration: the repo currently being scanned (one overwritten line / status bar).
 PROGRESS_LINE = "Scanning: {path}"
 
-# Checked before any walk starts: a pull walk is minutes, so a missing command fails first.
-ASK_REQUIRES_COMMIT_COMMAND = "{flag} requires a non-empty commit_command in settings.json."
-FLAG_COMMIT_ASK = "--commit-ask"
-FLAG_SYNC_ASK = "--sync-ask"
-
 COMMIT_NEEDS_TTY = "--commit-ask needs an interactive terminal; nothing to do."
 COMMIT_HEADER = "{path}  -  {count} uncommitted"
 COMMIT_MENU = (
-    ("Commit", "c"),
+    ("Commit (run commit_command)", "c"),
+    ("Commit with typed message", "t"),
+    ("Open TortoiseGit commit dialog", "g"),
     ("More actions...", "m"),
     ("Skip", "s"),
     ("Abort", "a"),

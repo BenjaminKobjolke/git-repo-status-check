@@ -1,4 +1,4 @@
-"""The repo actions the ask-modes share: pull, push, stash, rename, open in explorer.
+"""The repo actions the ask-modes share: pull, commit, push, stash, rename, open in explorer.
 
 ``--pull-ask`` and the ``--commit-ask`` submenu run the same ones, so they live in one
 place — a second copy would be the only way for the two modes to disagree. A module of
@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import frontend
+from .commit_constants import GIT_ADD_ALL, GIT_COMMIT_MESSAGE
 from .constants import (
     EXPLORER_NOT_CONFIGURED,
     GIT_CHECKOUT_HEAD_STDIN_PATHS,
@@ -53,6 +54,18 @@ def run_pull(path: Path) -> bool:
     """
     _reset_line_ending_noise(path)
     return _run_streaming(path, GIT_PULL, "pull")
+
+
+def run_commit(path: Path, message: str) -> bool:
+    """Stage everything and commit it under ``message``; True when the commit exists.
+
+    Line-ending-only files are restored first, as ``run_pull`` does, so they do not become
+    full-file changes in the new commit.
+    """
+    _reset_line_ending_noise(path)
+    return _run_streaming(path, GIT_ADD_ALL, "add") and _run_streaming(
+        path, (*GIT_COMMIT_MESSAGE, message), "commit"
+    )
 
 
 def _reset_line_ending_noise(path: Path) -> None:

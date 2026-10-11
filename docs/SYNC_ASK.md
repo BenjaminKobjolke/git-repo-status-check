@@ -55,10 +55,10 @@ the tool as it always did.
 
 ## Requirements
 
-- A non-empty `commit_command` in settings (see [SETTINGS.md](SETTINGS.md)). Checked
-  **before** the pull stage starts: a pull walk is minutes, so a run that could not honour
-  its commit stage fails immediately instead.
 - An interactive terminal (each stage prints its notice and does nothing otherwise).
+
+The commit stage works without `commit_command`; its configured-command entry is hidden
+while typed-message and TortoiseGit commit options remain available.
 
 ## Credentials
 

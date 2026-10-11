@@ -12,6 +12,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import frontend, menu, repo_actions
+from .commit_constants import (
+    COMMIT_MESSAGE_EMPTY,
+    COMMIT_MESSAGE_PROMPT,
+    COMMIT_NO_PUSH_TARGET,
+)
 from .constants import (
     AGE_DATE_FORMAT,
     COMMIT_HEADER,
@@ -24,24 +29,27 @@ from .constants import (
     MORE_MENU_TITLE,
     NO_REMOTE_CONFIGURED,
 )
+from .menu import MenuItems
 from .models import RepoStatus
 from .mute_store import MuteStore
+from .pusher import measure_ahead
 from .scanner import changed_file_ages, run_git
 
 
 def commit_interactive(
     statuses: list[RepoStatus],
-    command: str,
+    command: str | None,
     store: MuteStore,
     file_explorer: str | None = None,
     rename_prefix: str | None = None,
 ) -> bool:
-    """Walk ``statuses`` (already filtered/limited), prompting to run ``command`` per repo.
+    """Walk ``statuses`` and offer configured, typed-message and TortoiseGit commits.
 
     Returns False when the user chose Abort (so ``--sync-ask`` can end the whole run), True
     once every repo was settled -- or there was nothing to prompt.
 
-    *Commit* runs the command in the repo dir, *Skip* moves on, *Abort* stops the whole
+    When ``command`` is None, only the typed-message and TortoiseGit entries are shown.
+    *Skip* moves on, *Abort* stops the whole
     loop, and *More actions...* opens a submenu
     (age of files / list files / url / pull / explorer / rename / stash / mute); the pull,
     the explorer, the stash and the rename come from ``repo_actions``, shared with
@@ -67,27 +75,49 @@ def commit_interactive(
         # min_visit_age keeps it quiet on the next run. Repos further down the list are
         # untouched: you never saw those.
         store.record_visit(str(status.path), time.time())
-        choice = _ask(header, status.path, file_explorer, rename_prefix)
-        if choice == "a":
-            print(MENU_ABORTED)
-            return False
-        if choice == "s":
-            continue
-        if choice == "mute":
-            store.mute(str(status.path), time.time() + menu.ask_timeframe())
-            continue
-        _run_commit(command, status)
+        while True:
+            choice = _ask(header, status.path, file_explorer, rename_prefix, commit_menu(command))
+            if choice == "a":
+                print(MENU_ABORTED)
+                return False
+            if choice == "s":
+                break
+            if choice == "mute":
+                store.mute(str(status.path), time.time() + menu.ask_timeframe())
+                break
+            if choice == "c":
+                _run_commit(command, status, shell=True)
+                break
+            if choice == "g":
+                _run_commit(
+                    ("TortoiseGitProc.exe", "/command:commit", f"/path:{status.path}"), status
+                )
+                break
+            if _commit_typed(status.path):
+                break
+            menu.pause()
     return True
 
 
-def _ask(header: str, path: Path, file_explorer: str | None, rename_prefix: str | None) -> str:
-    """Show the per-repo menu; ``m`` opens the submenu. Returns c/s/a/mute.
+def commit_menu(command: str | None) -> MenuItems:
+    """Return the commit menu, omitting the configured-command action when absent."""
+    return COMMIT_MENU if command else tuple(item for item in COMMIT_MENU if item[1] != "c")
+
+
+def _ask(
+    header: str,
+    path: Path,
+    file_explorer: str | None,
+    rename_prefix: str | None,
+    items: MenuItems,
+) -> str:
+    """Show the per-repo menu; ``m`` opens the submenu. Returns a top-menu action.
 
     ``header`` is the same line printed above the repo, reused as the menu title so the
     repo stays visible while the full-screen menu is up.
     """
     while True:
-        choice = menu.choose(COMMIT_MENU, header)
+        choice = menu.choose(items, header)
         if choice != "m":
             return choice
         sub = _more_menu(path, file_explorer, rename_prefix)
@@ -97,6 +127,22 @@ def _ask(header: str, path: Path, file_explorer: str | None, rename_prefix: str 
         if sub == "skip":
             return "s"
         # 'back' — re-show the top menu.
+
+
+def _commit_typed(path: Path) -> bool:
+    """Commit one typed message and push it when the branch has a push target."""
+    message = menu.ask_text(COMMIT_MESSAGE_PROMPT).strip()
+    if not message:
+        print(COMMIT_MESSAGE_EMPTY)
+        return False
+    if not repo_actions.run_commit(path, message):
+        return False
+    found = measure_ahead(path)
+    if found is None:
+        print(COMMIT_NO_PUSH_TARGET)
+    elif not repo_actions.run_push(path, found.push_args()):
+        menu.pause()
+    return True
 
 
 def _more_menu(path: Path, file_explorer: str | None, rename_prefix: str | None) -> str:
@@ -192,9 +238,9 @@ def _list_remotes(path: Path) -> None:
         print("  " + "  ".join(part.strip() for part in row))
 
 
-def _run_commit(command: str, status: RepoStatus) -> None:
+def _run_commit(command: str | tuple[str, ...], status: RepoStatus, shell: bool = False) -> None:
     """Run the commit command in the repo dir with live output; report the result."""
-    code = frontend.get().run_live(command, status.path, shell=True)
+    code = frontend.get().run_live(command, status.path, shell=shell)
     if code == 0:
         print(f"  OK: {status.path}")
     else:

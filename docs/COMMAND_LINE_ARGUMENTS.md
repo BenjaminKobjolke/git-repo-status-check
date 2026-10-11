@@ -59,10 +59,14 @@ uv run python main.py --limit 10
 ## `--commit-ask`
 
 After the report, walk the same dirty repos it showed (respecting `--limit`, newest first)
-and show an arrow-key menu for each: **Commit / More actions... / Skip / Abort**. Navigate
-with the arrow keys, confirm with Enter, leave with Ctrl-C — nothing is typed.
+and show an arrow-key menu for each: **Commit (run commit_command) / Commit with typed
+message / Open TortoiseGit commit dialog / More actions... / Skip / Abort**. Navigate with
+the arrow keys, confirm with Enter, leave with Ctrl-C. The typed option asks for a
+single-line message, commits all changes and pushes; TortoiseGit opens its commit dialog.
 
-- **Commit** — run the configured `commit_command` in that repo's directory (output streams live).
+- **Commit (run commit_command)** — run the configured command in that repo's directory (output streams live; hidden when unset).
+- **Commit with typed message** — run `git add -A`, `git commit -m <message>`, then push (no pull first).
+- **Open TortoiseGit commit dialog** — open and wait for `TortoiseGitProc.exe`; it must be on `PATH`.
 - **More actions...** — open a submenu: age of changed files / list changed files / remote
   url / pull / open in file explorer / rename repo / stash changes / mute repo / back.
   - *Age of changed files* — show the modification date of each changed file. When every changed file shares
@@ -92,9 +96,8 @@ with the arrow keys, confirm with Enter, leave with Ctrl-C — nothing is typed.
 
 See [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) for the full menu reference.
 
-Requires a non-empty `commit_command` in settings.json (see
-[SETTINGS.md](SETTINGS.md)); without one the tool prints an error and exits 1 **before
-scanning**. The submenu's *Open in file explorer* additionally needs `file_explorer` and *Rename repo*
+`commit_command` is optional: without it, the configured-command entry is hidden. The
+submenu's *Open in file explorer* additionally needs `file_explorer` and *Rename repo*
 needs `rename_prefix`, but both settings are optional — without them only those actions are
 unavailable. Needs an interactive terminal — with piped/redirected stdin it prints a
 notice and does nothing. For Codex usage examples, see [CODEX.md](CODEX.md).
@@ -202,8 +205,8 @@ D:\GIT\some\repo  -  2 commit(s) ahead of origin/main
 All three ask-modes in one run, in order: `--pull-ask`, then `--commit-ask`, then
 `--push-ask`, each announced with a `=== ... ===` banner and each behaving exactly as on its
 own (same menus, same separate mutes and visits). *Abort* in any stage ends the whole run.
-Requires a non-empty `commit_command`, checked before the pull stage starts. `--all` applies
-to every stage; `--limit` to the commit stage only.
+`commit_command` is optional; without it the commit stage hides that menu entry. `--all`
+applies to every stage; `--limit` to the commit stage only.
 
 **See [SYNC_ASK.md](SYNC_ASK.md) for the full description.**
 

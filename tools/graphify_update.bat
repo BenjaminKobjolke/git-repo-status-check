@@ -3,17 +3,20 @@ setlocal enabledelayedexpansion
 REM ===========================================================================
 REM graphify_update.bat  --  TEMPLATE
 REM
-REM Manual, no-AI code-graph refresh + smoke test. Copy this into your
+REM Manual, no-AI live-graph refresh + smoke test. Copy this into your
 REM project's  tools\  folder and adjust CODE_DIR below to your source folder
-REM (lib / src / app / internal ...). Run it any time to check graphify works.
+REM (lib / src / app / internal ...). Run it after code changes or to check
+REM graphify works.
 REM
 REM What it does (no LLM, no API key, no token cost):
-REM   [1/2] Code-only AST refresh via `graphify update` -- re-extracts code only.
-REM         NOTE: this writes the AST cache under CODE_DIR\graphify-out\. It does
-REM         NOT rebuild the live root graphify-out\graph.json that queries read.
-REM         For an authoritative DIRECTED rebuild of the live graph, run
+REM   [1/2] Code-only AST refresh of the LIVE root graphify-out\graph.json via
+REM         `graphify update`. GRAPHIFY_OUT is pointed at the root folder and
+REM         CODE_DIR is passed absolute -- both required, otherwise the CLI
+REM         writes a stray graph under CODE_DIR\graphify-out\ or re-anchors
+REM         every node id. Directed flag + community labels are kept.
+REM         Docs are not re-extracted; a FIRST build is the skill flow
 REM              /graphify CODE_DIR --directed
-REM         inside Claude (the skill flow) -- a .bat cannot do that step.
+REM         inside Claude -- never delete graph.json before running this bat.
 REM   [2/2] Smoke test -- confirm the live root graph exists, is directed, and
 REM         answers a query. This is the "does graphify actually work here" check.
 REM ===========================================================================
@@ -42,8 +45,9 @@ if errorlevel 1 (
   )
 )
 
-echo === [1/2] code-only AST refresh (no LLM) : %CODE_DIR% ===
-"%GRAPHIFY%" update "%CODE_DIR%"
+echo === [1/2] live-graph AST refresh (no LLM) : %CODE_DIR% ===
+set "GRAPHIFY_OUT=%CD%\graphify-out"
+"%GRAPHIFY%" update "%CD%\%CODE_DIR%"
 if not "!ERRORLEVEL!"=="0" set "RC=1"
 echo.
 

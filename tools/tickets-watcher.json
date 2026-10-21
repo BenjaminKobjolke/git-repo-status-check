@@ -6,5 +6,47 @@
     "tools\\run_tests.bat",
     "tools\\run_integration_tests.bat",
     "tools\\analyze_code.bat"
-  ]
+  ],
+  "command_check_scripts": [
+    "analyze_changed_and_new_files.bat",
+    "analyze_code.bat",
+    "analyze_code_config.bat",
+    "analyze_code_config.example.bat",
+    "fix_ruff_issues.bat",
+    "fix_ruff_issues_dry_run.bat",
+    "graphify_update.bat",
+    "menu_smoke.bat",
+    "run_integration_tests.bat",
+    "run_tests.bat"
+  ],
+  "analysis_commands_seen": {
+    "scripts": [
+      "analyze_changed_and_new_files.bat",
+      "analyze_code.bat",
+      "analyze_code_config.bat",
+      "analyze_code_config.example.bat",
+      "fix_ruff_issues.bat",
+      "fix_ruff_issues_dry_run.bat",
+      "graphify_update.bat",
+      "menu_smoke.bat",
+      "run_integration_tests.bat",
+      "run_tests.bat"
+    ],
+    "tests": true
+  },
+  "analysis_command_states": {
+    "tools/fix_ruff_issues.bat": {
+      "code_quality": "green"
+    },
+    "tools\\run_tests.bat": {
+      "test": "green"
+    },
+    "tools\\run_integration_tests.bat": {
+      "test": "green"
+    },
+    "tools\\analyze_code.bat": {
+      "code_quality": "green"
+    }
+  },
+  "analysis_format_command": "tools/fix_ruff_issues.bat"
 }

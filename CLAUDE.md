@@ -1,5 +1,5 @@
 # Version
-2
+3
 
 # Coding Rules (Pointer)
 
@@ -22,9 +22,13 @@ states that the implementation is orchestrated, ignore `IMPLEMENTATION_FLOW.md`
 entirely — the orchestrator runs those steps as its own phases. `CODING_RULES.md`
 stays binding either way.
 
+Next to `CODING_RULES.md`, apply also writes `CODING_RULES_PLAN.md`,
+`CODING_RULES_REVIEW.md` and `CODING_RULES_CODE.md`. When an orchestrator's run
+instructions name one of these step files, that file replaces `CODING_RULES.md`
+for that run; without such an instruction, `CODING_RULES.md` stays binding in full.
+
 Do not inline rules back into this file and do not use `@import` for either file —
 they are intentionally referenced, not imported.
-
 
 ## Code Analysis
 

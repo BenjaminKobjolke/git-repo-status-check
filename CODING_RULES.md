@@ -1,7 +1,7 @@
 <!-- Managed by /coding-rules:apply — do not edit rule blocks by hand -->
 
 # Version
-12
+14
 
 Increase this version number whenever this rule file changes.
 
@@ -13,6 +13,7 @@ corresponding `*_RULES.md` files.
 ---
 
 ## Keep CODING_RULES.md in Sync
+<!-- steps: code -->
 
 When working on a project, copy all relevant rules into the project's `CODING_RULES.md` file
 (project root). The project's `CLAUDE.md` carries only a small versioned pointer block that
@@ -22,6 +23,9 @@ mandates reading `CODING_RULES.md` before code work — never the full rules, an
 - Always include all rules from `COMMON_RULES.md` and `IMPLEMENTATION_FLOW.md`.
   `COMMON_RULES.md` is copied into the project's `CODING_RULES.md`;
   `IMPLEMENTATION_FLOW.md` is copied into the project's own `IMPLEMENTATION_FLOW.md`
+- `apply` also writes `CODING_RULES_PLAN.md`, `CODING_RULES_REVIEW.md` and
+  `CODING_RULES_CODE.md` from the same rule blocks. Use `<!-- steps: plan, review, code -->`
+  under a heading to limit its section.
 - Also include applicable language-specific, project-type, and supplemental rule files
   (see `PROJECT_TYPES.md` for the project-type overview)
 - Include optional addon rule files only when the user has opted in to that addon
@@ -117,6 +121,7 @@ components work correctly together and catch issues that unit tests alone cannot
 ---
 
 ## Test Runner Scripts
+<!-- steps: review, code -->
 
 Every project must provide the following batch files in the `tools/` directory:
 
@@ -148,6 +153,7 @@ or use the runner's own log-file option.
 ---
 
 ## No `pause` in Batch Files
+<!-- steps: review, code -->
 
 Batch files must never contain a `pause` line. `pause` waits for a keypress, so any bat that has one
 hangs forever when run by CI, another bat, or an AI agent. End with an explicit `exit /b <code>`
@@ -188,6 +194,7 @@ from being re-invented in every new project.
 ---
 
 ## New Projects Start From a Template
+<!-- steps: plan -->
 
 Before creating a new project (an API, an app, a tool — anything that gets its own folder),
 ask the user whether a template project exists for that kind of project. Never scaffold from
@@ -308,6 +315,7 @@ The logger's name is fixed per language so it is the same known type in every pr
 | Dart/Flutter  | `AppLogger`        | `app_logger.dart`   |
 | Kotlin        | `AppLogger`        | `AppLogger.kt`      |
 | C# (plain)    | `AppLogger`        | `AppLogger.cs`      |
+| C++           | `AppLogger`        | `AppLogger.h` / `AppLogger.cpp` |
 | Unity C#      | `GameLog` (static) | `GameLog.cs`        |
 | Svelte/JS/TS  | `logger` (export)  | `logger.ts`         |
 | Arduino       | `Log`              | `Log.h` / `Log.cpp` |
@@ -530,7 +538,7 @@ the wrong side of **No God Classes**.
   fields.
 
 # Version
-8
+9
 
 Increase this version number whenever this rule file changes.
 
@@ -559,6 +567,7 @@ inventing a new approach.
 - `python/recipes/SINGLE_INSTANCE.md` — prevent a second instance of the app from starting.
 
 ## CLI Menus
+<!-- steps: review, code -->
 
 For **interactive command-line** applications, never hand-roll a menu out of `input()`
 and printed option lists. Use **`pick`** — an arrow-key menu with a selection
@@ -650,6 +659,7 @@ what the curses backend breaks, and only a human at a terminal can see it.
 ---
 
 ## Project Setup Scripts
+<!-- steps: code -->
 
 Copy the setup batch files from the `python_setup_files/` folder bundled with the
 coding-rules plugin (next to this rules file).
@@ -716,6 +726,7 @@ Recommended baseline:
 ---
 
 ## 2) Enforce formatting + linting + type checking in CI
+<!-- steps: review, code -->
 
 Minimum toolchain:
 
@@ -779,6 +790,7 @@ Rules:
 ---
 
 ## 6) Use `spec=` with MagicMock to catch interface mismatches
+<!-- steps: review, code -->
 
 `MagicMock` without `spec` accepts **any** attribute, even non-existent ones:
 
@@ -845,6 +857,7 @@ with patch("module.ClassName", spec=RealClass) as mock_cls:
 ---
 
 ## 7) Required Batch Files
+<!-- steps: code -->
 
 Every project must include these batch files:
 
@@ -926,7 +939,7 @@ Prefer the Protocol approach for simple cases. Use dataclass metadata when you n
 per-field control without writing boilerplate methods.
 
 # Version
-1
+2
 
 Increase this version number whenever this rule file changes.
 
@@ -940,6 +953,7 @@ guides are:
 
 - `python_setup_files/MODERN_GUI.md` — PySide6 desktop apps
 - `project_type/FRONTEND.md` — web SPAs (Vite, Tailwind, dark mode)
+- `project_type/SERVER_RENDERED_FRONTEND.md` — server-rendered PHP web frontends (Twig, Bootstrap)
 
 Default UI toolkits ship a *safe* look, not a good one: gradient buttons, boxed tabs,
 every control the same size, no hierarchy. An interface built from defaults reads as a
@@ -1131,7 +1145,7 @@ A restyle is not done because the tests pass — tests do not look at the screen
 Increase this version number whenever this rule file changes.
 
 # Version
-14
+15
 
 Increase this version number whenever this rule file changes.
 
@@ -1156,6 +1170,7 @@ assets — forcing the LLM pass. **Always scope to the code dir; never build the
 Setup instructions live in the coding-rules plugin at `graphify_setup_files/SETUP.md`.
 
 ## Folder layout (know which is which)
+<!-- steps: code -->
 
 - `graphify-out/` at the **project root** = the **live graph** (`graph.json`, `GRAPH_REPORT.md`,
   `graph.html`). The only one queries read. Keep it `directed=True`.
@@ -1186,6 +1201,7 @@ Setup instructions live in the coding-rules plugin at `graphify_setup_files/SETU
   query/path/explain do not surface enough context.
 
 ## Manual refresh bat (`tools/graphify_update.bat`)
+<!-- steps: code -->
 
 Copied from the `graphify_update.bat` template beside this addon, adjusted (`CODE_DIR`).
 Run it from anywhere — it `pushd`es to the repo root itself.
@@ -1200,6 +1216,7 @@ Run it from anywhere — it `pushd`es to the repo root itself.
   wired up?" check after cloning, a dependency change, or a graphify upgrade.
 
 ## In-tree vendored code — exclude it, scoping alone won't
+<!-- steps: code -->
 
 `--directed`-scoping the build to `<code-dir>` keeps external `vendor/`/`node_modules/` out
 automatically, but a **committed** third-party library living *inside* `<code-dir>` (a bundled

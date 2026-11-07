@@ -16,6 +16,7 @@ from git_repo_status_check.constants import (
     KEY_MIN_MODIFIED_AGE,
     KEY_MIN_VISIT_AGE,
     KEY_RENAME_PREFIX,
+    KEY_TORTOISEGIT,
 )
 from git_repo_status_check.settings import (
     EXAMPLE_SETTINGS,
@@ -80,7 +81,7 @@ def test_load_all_folders_missing_raises(tmp_path: Path) -> None:
 
 # commit_command, file_explorer and rename_prefix share one optional-string contract,
 # so they share tests.
-OPTIONAL_COMMANDS = [KEY_COMMIT_COMMAND, KEY_FILE_EXPLORER, KEY_RENAME_PREFIX]
+OPTIONAL_COMMANDS = [KEY_COMMIT_COMMAND, KEY_FILE_EXPLORER, KEY_RENAME_PREFIX, KEY_TORTOISEGIT]
 
 
 @pytest.mark.parametrize("key", OPTIONAL_COMMANDS)
@@ -183,4 +184,4 @@ def test_generated_example_settings_are_valid(tmp_path: Path) -> None:
     path.write_text(json.dumps(data), encoding="utf-8")
 
     settings = Settings.load(path)
-    assert settings.commit_command and settings.file_explorer
+    assert settings.commit_command and settings.file_explorer and settings.tortoisegit

@@ -95,27 +95,43 @@ def test_tortoisegit_path_is_one_argument_without_shell(
     status = _statuses(1)[0]
     status = status.__class__(path=Path("repo space & more"), dirty_count=1)
     monkeypatch.setattr(committer.menu, "choose", lambda _items, _title: "g")
-    assert committer.commit_interactive([status], None, store)
+    assert committer.commit_interactive(
+        [status], None, store, tortoisegit="C:/TG/TortoiseGitProc.exe"
+    )
     mock_run.assert_called_once_with(
-        ("TortoiseGitProc.exe", "/command:commit", "/path:repo space & more"),
+        ("C:/TG/TortoiseGitProc.exe", "/command:commit", "/path:repo space & more"),
         shell=False,
         cwd="repo space & more",
         check=False,
     )
 
 
-@pytest.mark.parametrize("command", [None, "do-commit"])
-def test_menu_hides_only_configured_command(
-    monkeypatch: pytest.MonkeyPatch, mock_run: MagicMock, store: MuteStore, command: str | None
+@pytest.mark.parametrize(
+    ("command", "tortoisegit"),
+    [
+        (None, None),
+        (None, "TortoiseGitProc.exe"),
+        ("do-commit", None),
+        ("do-commit", "TortoiseGitProc.exe"),
+    ],
+)
+def test_menu_hides_unconfigured_commit_actions(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run: MagicMock,
+    store: MuteStore,
+    command: str | None,
+    tortoisegit: str | None,
 ) -> None:
     def choose(items, _title):
         mock_run.items = items
         return "s"
 
     monkeypatch.setattr(committer.menu, "choose", choose)
-    committer.commit_interactive(_statuses(1), command, store)
+    committer.commit_interactive(_statuses(1), command, store, tortoisegit=tortoisegit)
     items = mock_run.items
-    assert (items == COMMIT_MENU) is bool(command)
-    if command is None:
-        assert {choice for _, choice in items} >= {"t", "g"}
-        assert "c" not in {choice for _, choice in items}
+    choices = {choice for _, choice in items}
+    assert ("c" in choices) is bool(command)
+    assert ("g" in choices) is bool(tortoisegit)
+    assert {"t", "m", "s", "a"} <= choices
+    if command and tortoisegit:
+        assert items == COMMIT_MENU

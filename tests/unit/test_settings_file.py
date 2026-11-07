@@ -22,6 +22,7 @@ def test_round_trip_keeps_every_key_as_typed(tmp_path: Path) -> None:
         folders=["D:\\GIT", "C:/other"],
         commit_command="codex --yolo",
         file_explorer='explorer "[[REPO_PATH]]"',
+        tortoisegit="TortoiseGitProc.exe",
         rename_prefix="_old_",
         ignore_prefixes=["_old_", "archive_"],
         min_modified_age="4h",

@@ -5,3 +5,5 @@ GIT_COMMIT_MESSAGE: tuple[str, ...] = ("commit", "-m")
 COMMIT_MESSAGE_PROMPT = "  Commit message: "
 COMMIT_MESSAGE_EMPTY = "  Empty commit message; nothing committed."
 COMMIT_NO_PUSH_TARGET = "  Committed, not pushed: no remote or no branch to push."
+TORTOISEGIT_COMMIT_ARGS: tuple[str, ...] = ("/command:commit",)
+TORTOISEGIT_PATH_ARG = "/path:{path}"

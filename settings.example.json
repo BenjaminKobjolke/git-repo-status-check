@@ -4,6 +4,7 @@
   ],
   "commit_command": "codex --yolo \"git commit and push\"",
   "file_explorer": "explorer \"[[REPO_PATH]]\"",
+  "tortoisegit": "TortoiseGitProc.exe",
   "ignore_prefixes": [
     "_old_"
   ],

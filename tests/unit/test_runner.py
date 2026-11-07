@@ -57,11 +57,15 @@ def test_no_threshold_means_actionable() -> None:
 def _run_commit_ask(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *extra: str,
     commit_command: str | None = "echo hi",
+    tortoisegit: str | None = "TortoiseGitProc.exe",
 ) -> dict[str, object]:
     """Run main in --commit-ask with the scan and the menu stubbed; return what it passed on."""
     settings_file = tmp_path / "settings.json"
     command = f', "commit_command": "{commit_command}"' if commit_command else ""
-    settings_file.write_text('{"folders": ["."]' + command + "}", encoding="utf-8")
+    tortoisegit_setting = f', "tortoisegit": "{tortoisegit}"' if tortoisegit else ""
+    settings_file.write_text(
+        '{"folders": ["."]' + command + tortoisegit_setting + "}", encoding="utf-8"
+    )
     seen: dict[str, object] = {}
 
     def fake_report(
@@ -76,8 +80,9 @@ def _run_commit_ask(
 
     monkeypatch.setattr(runner, "scan_all", fake_scan_all)
     monkeypatch.setattr(runner, "report", fake_report)
-    def fake_commit(*args: object, **_kwargs: object) -> None:
+    def fake_commit(*args: object, **kwargs: object) -> None:
         seen["commit_args"] = args
+        seen["commit_kwargs"] = kwargs
 
     monkeypatch.setattr(runner, "commit_interactive", fake_commit)
     assert main.main(["--settings", str(settings_file), "--commit-ask", *extra]) == 0
@@ -118,6 +123,14 @@ def test_commit_ask_without_command_still_opens_the_menu(
 ) -> None:
     seen = _run_commit_ask(monkeypatch, tmp_path, commit_command=None)
     assert seen["commit_args"][1] is None
+    assert seen["commit_kwargs"]["tortoisegit"] == "TortoiseGitProc.exe"
+
+
+def test_commit_ask_passes_tortoisegit_setting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen = _run_commit_ask(monkeypatch, tmp_path, tortoisegit="C:/TG/TortoiseGitProc.exe")
+    assert seen["commit_kwargs"]["tortoisegit"] == "C:/TG/TortoiseGitProc.exe"
 
 
 @pytest.mark.parametrize(("extra", "expected_all"), [((), False), (("--all",), True)])

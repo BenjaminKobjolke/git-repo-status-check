@@ -46,6 +46,9 @@ class SettingsPage(QWidget):
         self._commit_command = self._field(
             layout, TK.SETTINGS_LABEL_COMMIT_COMMAND, TK.SETTINGS_HINT_COMMIT_COMMAND
         )
+        self._tortoisegit = self._field(
+            layout, TK.SETTINGS_LABEL_TORTOISEGIT, TK.SETTINGS_HINT_TORTOISEGIT
+        )
         self._file_explorer = self._field(
             layout, TK.SETTINGS_LABEL_FILE_EXPLORER, TK.SETTINGS_HINT_FILE_EXPLORER
         )
@@ -87,6 +90,7 @@ class SettingsPage(QWidget):
         self._folders.clear()
         self._folders.addItems(doc.folders)
         self._commit_command.setText(doc.commit_command)
+        self._tortoisegit.setText(doc.tortoisegit)
         self._file_explorer.setText(doc.file_explorer)
         self._rename_prefix.setText(doc.rename_prefix)
         self._ignore_prefixes.setText(f"{_PREFIX_SEPARATOR} ".join(doc.ignore_prefixes))
@@ -104,6 +108,7 @@ class SettingsPage(QWidget):
         return SettingsDocument(
             folders=[self._folders.item(i).text() for i in range(self._folders.count())],
             commit_command=self._commit_command.text(),
+            tortoisegit=self._tortoisegit.text(),
             file_explorer=self._file_explorer.text(),
             rename_prefix=self._rename_prefix.text(),
             ignore_prefixes=prefixes,

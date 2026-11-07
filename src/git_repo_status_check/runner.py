@@ -182,6 +182,7 @@ def _commit_stage(settings: Settings, store: MuteStore, ask: bool, request: RunR
         store,
         settings.file_explorer,
         settings.rename_prefix,
+        tortoisegit=settings.tortoisegit,
     )
 
 

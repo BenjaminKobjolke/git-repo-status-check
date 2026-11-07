@@ -31,7 +31,11 @@ def workspace(tmp_path: Path) -> tuple[Path, Path]:
     repo = _init_repo(root / "dirty")
     (repo / "new.txt").write_text("unsaved", encoding="utf-8")
     settings = tmp_path / "settings.json"
-    SettingsDocument(folders=[str(root)], commit_command="echo committed").write(settings)
+    SettingsDocument(
+        folders=[str(root)],
+        commit_command="echo committed",
+        tortoisegit="TortoiseGitProc.exe",
+    ).write(settings)
     return settings, root
 
 

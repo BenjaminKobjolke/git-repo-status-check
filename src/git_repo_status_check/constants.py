@@ -135,6 +135,7 @@ KEY_IGNORE_PREFIXES = "ignore_prefixes"
 KEY_MIN_MODIFIED_AGE = "min_modified_age"
 KEY_MIN_VISIT_AGE = "min_visit_age"
 KEY_FILE_EXPLORER = "file_explorer"
+KEY_TORTOISEGIT = "tortoisegit"
 KEY_RENAME_PREFIX = "rename_prefix"
 
 # Placeholder substituted with the repo path in the file_explorer command. Named for the
@@ -201,8 +202,8 @@ PROGRESS_LINE = "Scanning: {path}"
 COMMIT_NEEDS_TTY = "--commit-ask needs an interactive terminal; nothing to do."
 COMMIT_HEADER = "{path}  -  {count} uncommitted"
 COMMIT_MENU = (
-    ("Commit (run commit_command)", "c"),
-    ("Commit with typed message", "t"),
+    ("Commit with default command", "c"),
+    ("Commit all files with a message", "t"),
     ("Open TortoiseGit commit dialog", "g"),
     ("More actions...", "m"),
     ("Skip", "s"),

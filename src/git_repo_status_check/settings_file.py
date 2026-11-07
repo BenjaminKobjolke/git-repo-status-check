@@ -20,6 +20,7 @@ from .constants import (
     KEY_MIN_MODIFIED_AGE,
     KEY_MIN_VISIT_AGE,
     KEY_RENAME_PREFIX,
+    KEY_TORTOISEGIT,
 )
 from .settings import EXAMPLE_SETTINGS, Settings, SettingsError
 
@@ -35,6 +36,7 @@ class SettingsDocument:
     folders: list[str] = field(default_factory=list)
     commit_command: str = ""
     file_explorer: str = ""
+    tortoisegit: str = ""
     rename_prefix: str = ""
     ignore_prefixes: list[str] = field(default_factory=list)
     min_modified_age: str = ""
@@ -57,6 +59,7 @@ class SettingsDocument:
             folders=_strings(raw.get(KEY_FOLDERS)),
             commit_command=_string(raw.get(KEY_COMMIT_COMMAND)),
             file_explorer=_string(raw.get(KEY_FILE_EXPLORER)),
+            tortoisegit=_string(raw.get(KEY_TORTOISEGIT)),
             rename_prefix=_string(raw.get(KEY_RENAME_PREFIX)),
             ignore_prefixes=_strings(raw.get(KEY_IGNORE_PREFIXES)),
             min_modified_age=_string(raw.get(KEY_MIN_MODIFIED_AGE)),
@@ -71,6 +74,7 @@ class SettingsDocument:
         for key, value in (
             (KEY_COMMIT_COMMAND, self.commit_command),
             (KEY_FILE_EXPLORER, self.file_explorer),
+            (KEY_TORTOISEGIT, self.tortoisegit),
             (KEY_RENAME_PREFIX, self.rename_prefix),
             (KEY_MIN_MODIFIED_AGE, self.min_modified_age),
         ):

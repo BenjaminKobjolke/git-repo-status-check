@@ -16,6 +16,8 @@ from .commit_constants import (
     COMMIT_MESSAGE_EMPTY,
     COMMIT_MESSAGE_PROMPT,
     COMMIT_NO_PUSH_TARGET,
+    TORTOISEGIT_COMMIT_ARGS,
+    TORTOISEGIT_PATH_ARG,
 )
 from .constants import (
     AGE_DATE_FORMAT,
@@ -42,13 +44,15 @@ def commit_interactive(
     store: MuteStore,
     file_explorer: str | None = None,
     rename_prefix: str | None = None,
+    tortoisegit: str | None = None,
 ) -> bool:
     """Walk ``statuses`` and offer configured, typed-message and TortoiseGit commits.
 
     Returns False when the user chose Abort (so ``--sync-ask`` can end the whole run), True
     once every repo was settled -- or there was nothing to prompt.
 
-    When ``command`` is None, only the typed-message and TortoiseGit entries are shown.
+    The configured-command entry needs ``command``; the TortoiseGit entry needs
+    ``tortoisegit``. The typed-message entry is always shown.
     *Skip* moves on, *Abort* stops the whole
     loop, and *More actions...* opens a submenu
     (age of files / list files / url / pull / explorer / rename / stash / mute); the pull,
@@ -76,7 +80,13 @@ def commit_interactive(
         # untouched: you never saw those.
         store.record_visit(str(status.path), time.time())
         while True:
-            choice = _ask(header, status.path, file_explorer, rename_prefix, commit_menu(command))
+            choice = _ask(
+                header,
+                status.path,
+                file_explorer,
+                rename_prefix,
+                commit_menu(command, tortoisegit),
+            )
             if choice == "a":
                 print(MENU_ABORTED)
                 return False
@@ -88,9 +98,14 @@ def commit_interactive(
             if choice == "c":
                 _run_commit(command, status, shell=True)
                 break
-            if choice == "g":
+            if choice == "g" and tortoisegit:
                 _run_commit(
-                    ("TortoiseGitProc.exe", "/command:commit", f"/path:{status.path}"), status
+                    (
+                        tortoisegit,
+                        *TORTOISEGIT_COMMIT_ARGS,
+                        TORTOISEGIT_PATH_ARG.format(path=status.path),
+                    ),
+                    status,
                 )
                 break
             if _commit_typed(status.path):
@@ -99,9 +114,14 @@ def commit_interactive(
     return True
 
 
-def commit_menu(command: str | None) -> MenuItems:
-    """Return the commit menu, omitting the configured-command action when absent."""
-    return COMMIT_MENU if command else tuple(item for item in COMMIT_MENU if item[1] != "c")
+def commit_menu(command: str | None, tortoisegit: str | None) -> MenuItems:
+    """Omit configured-command and TortoiseGit actions when their settings are absent."""
+    hidden_actions = set()
+    if not command:
+        hidden_actions.add("c")
+    if not tortoisegit:
+        hidden_actions.add("g")
+    return tuple(item for item in COMMIT_MENU if item[1] not in hidden_actions)
 
 
 def _ask(

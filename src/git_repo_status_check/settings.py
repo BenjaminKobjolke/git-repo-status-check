@@ -19,6 +19,7 @@ from .constants import (
     KEY_MIN_MODIFIED_AGE,
     KEY_MIN_VISIT_AGE,
     KEY_RENAME_PREFIX,
+    KEY_TORTOISEGIT,
     REPO_PATH_TOKEN,
 )
 from .duration import parse_duration
@@ -28,6 +29,7 @@ EXAMPLE_SETTINGS: dict[str, object] = {
     KEY_FOLDERS: ["D:\\GIT"],
     KEY_COMMIT_COMMAND: 'codex --yolo "git commit and push"',
     KEY_FILE_EXPLORER: 'explorer "' + REPO_PATH_TOKEN + '"',
+    KEY_TORTOISEGIT: "TortoiseGitProc.exe",
     KEY_IGNORE_PREFIXES: ["_old_"],
     KEY_RENAME_PREFIX: "_old_",
     KEY_MIN_MODIFIED_AGE: "1h",
@@ -46,6 +48,7 @@ class Settings:
     folders: tuple[Path, ...]
     commit_command: str | None = None
     file_explorer: str | None = None
+    tortoisegit: str | None = None
     ignore_prefixes: tuple[str, ...] = ()
     rename_prefix: str | None = None
     min_modified_age: float | None = None
@@ -93,6 +96,7 @@ class Settings:
 
         commit_command = cls._parse_optional_string(data, path, KEY_COMMIT_COMMAND)
         file_explorer = cls._parse_optional_string(data, path, KEY_FILE_EXPLORER)
+        tortoisegit = cls._parse_optional_string(data, path, KEY_TORTOISEGIT)
         rename_prefix = cls._parse_optional_string(data, path, KEY_RENAME_PREFIX)
         ignore_prefixes = cls._parse_ignore_prefixes(data, path)
         min_modified_age = cls._parse_duration_key(data, path, KEY_MIN_MODIFIED_AGE, None)
@@ -103,6 +107,7 @@ class Settings:
             folders=tuple(folders),
             commit_command=commit_command,
             file_explorer=file_explorer,
+            tortoisegit=tortoisegit,
             ignore_prefixes=ignore_prefixes,
             rename_prefix=rename_prefix,
             min_modified_age=min_modified_age,
@@ -113,8 +118,8 @@ class Settings:
     def _parse_optional_string(data: dict[str, object], path: Path, key: str) -> str | None:
         """Optional string under ``key`` — absent stays None; present must be non-empty.
 
-        Shared by ``commit_command``, ``file_explorer`` and ``rename_prefix``: same
-        contract, same error message.
+        Shared by ``commit_command``, ``file_explorer``, ``tortoisegit`` and
+        ``rename_prefix``: same contract, same error message.
         """
         if key not in data:
             return None

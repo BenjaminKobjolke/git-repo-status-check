@@ -46,6 +46,7 @@
     "label": {
       "folders": "Zu scannende Ordner",
       "commit_command": "Commit-Befehl",
+      "tortoisegit": "TortoiseGit-Programm",
       "file_explorer": "Dateimanager-Befehl",
       "rename_prefix": "Umbenennungs-Präfix",
       "ignore_prefixes": "Ignorierte Präfixe",
@@ -55,6 +56,7 @@
     "hint": {
       "folders": "Jeder Wurzelordner wird rekursiv durchsucht; die Suche endet beim ersten gefundenen .git.",
       "commit_command": "Wird im Verzeichnis des Repos ausgeführt, wenn Commit gewählt wird.",
+      "tortoisegit": "TortoiseGitProc.exe oder der volle Pfad. Leer lassen, um den TortoiseGit-Eintrag auszublenden.",
       "file_explorer": "[[REPO_PATH]] wird durch den Repo-Pfad ersetzt — selbst in Anführungszeichen setzen.",
       "rename_prefix": "Wird von „Repo umbenennen“ vor den Ordnernamen gesetzt; auch bei den ignorierten Präfixen eintragen.",
       "ignore_prefixes": "Kommagetrennt. Ordner, deren Name mit einem davon beginnt, werden übersprungen.",

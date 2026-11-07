@@ -46,6 +46,7 @@
     "label": {
       "folders": "Folders to scan",
       "commit_command": "Commit command",
+      "tortoisegit": "TortoiseGit program",
       "file_explorer": "File explorer command",
       "rename_prefix": "Rename prefix",
       "ignore_prefixes": "Ignore prefixes",
@@ -55,6 +56,7 @@
     "hint": {
       "folders": "Each root is walked recursively; the walk stops at the first .git it finds.",
       "commit_command": "Run in the repo's own directory when you choose Commit.",
+      "tortoisegit": "TortoiseGitProc.exe, or its full path. Leave empty to hide the TortoiseGit entry.",
       "file_explorer": "[[REPO_PATH]] is replaced with the repo path — quote it yourself.",
       "rename_prefix": "Prepended to the folder name by Rename repo; list it under the ignore prefixes too.",
       "ignore_prefixes": "Comma-separated. Folders whose name starts with any of these are skipped.",

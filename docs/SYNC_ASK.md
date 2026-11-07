@@ -57,8 +57,8 @@ the tool as it always did.
 
 - An interactive terminal (each stage prints its notice and does nothing otherwise).
 
-The commit stage works without `commit_command`; its configured-command entry is hidden
-while typed-message and TortoiseGit commit options remain available.
+The commit stage works without `commit_command` or `tortoisegit`; their matching menu entries
+are hidden, while the typed-message option remains available.
 
 ## Credentials
 

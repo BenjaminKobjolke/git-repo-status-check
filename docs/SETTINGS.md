@@ -26,7 +26,8 @@ copy settings.example.json settings.json
 ## Format
 
 A JSON object with a required `folders` key (a non-empty list of root folder paths), an
-optional `commit_command` key used by `--commit-ask`, an optional `file_explorer` key
+optional `commit_command` key used by `--commit-ask`, an optional `tortoisegit` key
+for its TortoiseGit commit entry, an optional `file_explorer` key
 for its `e` menu action, an optional `rename_prefix` key for its `r` menu action, an
 optional `ignore_prefixes` key that skips folders by name prefix during scanning, and an
 optional `min_modified_age` key that holds `--commit-ask` back from freshly-touched repos,
@@ -40,6 +41,7 @@ settled.
     "C:\\Users\\me\\projects"
   ],
   "commit_command": "codex --yolo \"git commit and push\"",
+  "tortoisegit": "TortoiseGitProc.exe",
   "file_explorer": "explorer \"[[REPO_PATH]]\"",
   "rename_prefix": "_old_",
   "ignore_prefixes": ["_old_"],
@@ -59,7 +61,7 @@ settled.
 ### `commit_command`
 
 - Type: string. Optional; omit it if you do not use the configured-command menu entry.
-- The command run in each repo's directory when you choose *Commit (run commit_command)* in
+- The command run in each repo's directory when you choose *Commit with default command* in
   the `--commit-ask` menu
   (see [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md)).
 - Run via the shell with the working directory set to the repo, so the command needs no repo
@@ -71,6 +73,22 @@ settled.
 {
   "folders": ["D:\\GIT"],
   "commit_command": "codex --yolo \"git commit and push using those guidelines D:\\GIT\\...\\commit-fast.md\""
+}
+```
+
+### `tortoisegit`
+
+- Type: string. Optional; omit it to hide *Open TortoiseGit commit dialog* from the `--commit-ask` menu.
+- Set it to `TortoiseGitProc.exe` when the program is on `PATH`, or to the full path when it is
+  installed elsewhere. The program is launched without a shell and receives
+  `/command:commit` and `/path:<repo>` as separate arguments; its dialog closes before the menu
+  continues.
+- If present it must be a non-empty string, or settings validation fails.
+
+```json
+{
+  "folders": ["D:\\GIT"],
+  "tortoisegit": "C:\\Program Files\\TortoiseGit\\bin\\TortoiseGitProc.exe"
 }
 ```
 
@@ -200,7 +218,7 @@ Settings are validated on load; the tool fails fast with a clear message when:
 - there is no `folders` key, or it is not a non-empty list,
 - a `folders` entry is not a string,
 - **none** of the listed folders exist,
-- `commit_command`, `file_explorer` or `rename_prefix` is present but is not a non-empty
+- `commit_command`, `tortoisegit`, `file_explorer` or `rename_prefix` is present but is not a non-empty
   string,
 - `ignore_prefixes` is present but is not a list of non-empty strings,
 - `min_modified_age` or `min_visit_age` is present but is neither a parsable duration

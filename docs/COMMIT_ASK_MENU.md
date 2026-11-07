@@ -5,8 +5,9 @@ newest first) and shows an arrow-key menu per repo. This documents every menu en
 For the flag itself and its requirements, see
 [COMMAND_LINE_ARGUMENTS.md](COMMAND_LINE_ARGUMENTS.md).
 
-Needs an interactive terminal. Without `commit_command`, the configured-command entry is
-hidden; the typed-message and TortoiseGit entries remain available. The submenu's *Open in
+Needs an interactive terminal. Without `commit_command`, the default-command entry is
+hidden; without `tortoisegit`, the TortoiseGit entry is hidden. The typed-message entry always
+remains available. The submenu's *Open in
 file explorer* additionally needs
 `file_explorer` and *Rename repo* needs `rename_prefix`, both optional — without them
 every other entry still works.
@@ -42,8 +43,8 @@ duration) becomes a text field.
 ```
 <repo path>  -  <N> uncommitted
 
- > Commit (run commit_command)
-   Commit with typed message
+ > Commit with default command
+   Commit all files with a message
    Open TortoiseGit commit dialog
    More actions...
    Skip
@@ -52,9 +53,9 @@ duration) becomes a text field.
 
 | Entry | Action |
 |-------|--------|
-| Commit (run commit_command) | Run the configured command in this repo's directory (output streams live). This entry is hidden when no command is configured. |
-| Commit with typed message | Ask for one single-line message, then run `git add -A`, `git commit -m <message>`, and push to the upstream (or use `git push -u <remote> <branch>` when no upstream exists). No pull runs first. An empty message or failed add/commit returns to this repo's menu. A repo without a push target stays committed locally and reports that it was not pushed. If push fails, the commit stays local, the failure is shown, and the tool moves to the next repo. |
-| Open TortoiseGit commit dialog | Open `TortoiseGitProc.exe /command:commit /path:<repo>` and wait for the dialog to close. TortoiseGit's own Push button can push the commit. `TortoiseGitProc.exe` must be on `PATH`. |
+| Commit with default command | Run the configured `commit_command` in this repo's directory (output streams live). This entry is hidden when no command is configured. |
+| Commit all files with a message | Ask for one single-line message, then run `git add -A`, `git commit -m <message>`, and push to the upstream (or use `git push -u <remote> <branch>` when no upstream exists). No pull runs first. An empty message or failed add/commit returns to this repo's menu. A repo without a push target stays committed locally and reports that it was not pushed. If push fails, the commit stays local, the failure is shown, and the tool moves to the next repo. |
+| Open TortoiseGit commit dialog | When `tortoisegit` is set, launch the configured program without a shell with `/command:commit` and `/path:<repo>` as separate arguments, then wait for the dialog to close. TortoiseGit's own Push button can push the commit. |
 | More actions... | Open the **more** submenu (below). |
 | Skip | Skip this repo; move to the next. |
 | Abort | Abort the loop. No further repos are touched. |
@@ -102,7 +103,7 @@ Entries that print something wait for Enter before the next menu repaints the sc
 
 The read-only entries (age, list, url, pull, explorer) act and re-show the submenu — they
 never consume the repo, and neither does a refused rename or a failed stash. The three
-commit entries are *Commit (run commit_command)*, *Commit with typed message* and *Open
+commit entries are *Commit with default command*, *Commit all files with a message* and *Open
 TortoiseGit commit dialog*. Only *Mute repo* mutes; only a successful rename renames; only
 a successful stash stashes.
 
@@ -113,6 +114,6 @@ a successful stash stashes.
   than repos with local changes, and keeps its own mutes.
 - [PUSH_ASK.md](PUSH_ASK.md) — `--push-ask`, which finds committed-but-unpushed work.
 - [SYNC_ASK.md](SYNC_ASK.md) — `--sync-ask`: pull, this menu, then push in one run.
-- [SETTINGS.md](SETTINGS.md) — the `commit_command`, `file_explorer`, `rename_prefix`
+- [SETTINGS.md](SETTINGS.md) — the `commit_command`, `tortoisegit`, `file_explorer`, `rename_prefix`
   and `min_modified_age` keys.
 - [CODEX.md](CODEX.md) — commit-with-Codex `commit_command` examples.

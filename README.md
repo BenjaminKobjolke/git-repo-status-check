@@ -25,6 +25,7 @@ Copy `settings.example.json` to `settings.json` and set your folders — or open
     "D:\\GIT"
   ],
   "commit_command": "codex --yolo \"git commit and push\"",
+  "tortoisegit": "TortoiseGitProc.exe",
   "file_explorer": "explorer \"[[REPO_PATH]]\"",
   "ignore_prefixes": ["_old_"],
   "rename_prefix": "_old_",
@@ -33,7 +34,8 @@ Copy `settings.example.json` to `settings.json` and set your folders — or open
 }
 ```
 
-Only `folders` is required. `commit_command` powers `--commit-ask`, `file_explorer` is the
+Only `folders` is required. `commit_command` powers the default-command entry in `--commit-ask`,
+`tortoisegit` optionally enables its TortoiseGit entry, `file_explorer` is the
 file manager its `e` action opens a repo in (`[[REPO_PATH]]` is replaced with the repo path),
 `ignore_prefixes` prunes folders by name prefix while scanning, `rename_prefix` is the
 prefix its `r` action renames a repo folder with (archiving it out of the next scan), and
@@ -80,11 +82,11 @@ uv run python main.py [--settings PATH] [--limit N] [--commit-ask] [--pull-ask] 
 - `--limit N` — show at most `N` repos (newest changes first); summary still reports the true total.
   With `--commit-ask`, `N` counts only repos that are actually prompted for.
 - `--commit-ask` — after the report, show an arrow-key menu per dirty repo
-  (**Commit (run commit_command) / Commit with typed message / Open TortoiseGit commit
+  (**Commit with default command / Commit all files with a message / Open TortoiseGit commit
   dialog / More actions... / Skip / Abort**): arrow keys to move, Enter to confirm,
   Ctrl-C to leave. The typed option stages, commits and pushes using your message; the
-  TortoiseGit option opens its commit dialog. The configured-command entry is hidden when
-  `commit_command` is unset.
+  TortoiseGit option opens its commit dialog. The first entry is hidden when `commit_command`
+  is unset; the TortoiseGit entry is hidden when `tortoisegit` is unset.
   *More actions...* opens a submenu (age of changed files / list changed files / remote url /
   pull / open in file explorer / rename repo / stash changes / mute repo / back).
   *Rename repo* prefixes the repo folder with `rename_prefix` so it drops out of the next scan;

@@ -22,7 +22,7 @@ uv run python main.py --settings C:\configs\my-git-roots.json
 ```
 
 The file is a JSON object with a required `folders` list of root paths to scan, plus the
-optional `commit_command`, `file_explorer`, `rename_prefix`, `ignore_prefixes` and
+optional `commit_command`, `tortoisegit`, `file_explorer`, `rename_prefix`, `ignore_prefixes` and
 `min_modified_age` keys (see [SETTINGS.md](SETTINGS.md)):
 
 ```json
@@ -59,14 +59,14 @@ uv run python main.py --limit 10
 ## `--commit-ask`
 
 After the report, walk the same dirty repos it showed (respecting `--limit`, newest first)
-and show an arrow-key menu for each: **Commit (run commit_command) / Commit with typed
+and show an arrow-key menu for each: **Commit with default command / Commit all files with a
 message / Open TortoiseGit commit dialog / More actions... / Skip / Abort**. Navigate with
 the arrow keys, confirm with Enter, leave with Ctrl-C. The typed option asks for a
 single-line message, commits all changes and pushes; TortoiseGit opens its commit dialog.
 
-- **Commit (run commit_command)** — run the configured command in that repo's directory (output streams live; hidden when unset).
-- **Commit with typed message** — run `git add -A`, `git commit -m <message>`, then push (no pull first).
-- **Open TortoiseGit commit dialog** — open and wait for `TortoiseGitProc.exe`; it must be on `PATH`.
+- **Commit with default command** — run the configured command in that repo's directory (output streams live; hidden when `commit_command` is unset).
+- **Commit all files with a message** — run `git add -A`, `git commit -m <message>`, then push (no pull first).
+- **Open TortoiseGit commit dialog** — when `tortoisegit` is set, launch that program without a shell with `/command:commit` and `/path:<repo>` as separate arguments, then wait for it to close.
 - **More actions...** — open a submenu: age of changed files / list changed files / remote
   url / pull / open in file explorer / rename repo / stash changes / mute repo / back.
   - *Age of changed files* — show the modification date of each changed file. When every changed file shares
@@ -96,7 +96,8 @@ single-line message, commits all changes and pushes; TortoiseGit opens its commi
 
 See [COMMIT_ASK_MENU.md](COMMIT_ASK_MENU.md) for the full menu reference.
 
-`commit_command` is optional: without it, the configured-command entry is hidden. The
+`commit_command` and `tortoisegit` are optional: each menu entry is hidden when its matching
+setting is absent. The
 submenu's *Open in file explorer* additionally needs `file_explorer` and *Rename repo*
 needs `rename_prefix`, but both settings are optional — without them only those actions are
 unavailable. Needs an interactive terminal — with piped/redirected stdin it prints a
